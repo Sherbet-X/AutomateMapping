@@ -1,0 +1,1881 @@
+﻿using AutomateMappingTool;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.OleDb;
+using System.Data.OracleClient;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
+
+namespace MappingDiscount
+{
+    public partial class ViewHispeed : Form
+    {
+        #region "Private Field"
+        /// <summary>
+        /// DBConnection TAPRD
+        /// </summary>
+        private OracleConnection CONNECTION;
+        /// <summary>
+        /// DBConnection TRUREF71
+        /// </summary>
+        private OracleConnection CONNECTION71;
+        /// <summary>
+        /// Connection sting about TRUREF71
+        /// </summary>
+        private string connString71;
+        /// <summary>
+        /// fileName requirement 
+        /// </summary>
+        private string FILENAME;
+        /// <summary>
+        /// fileName vcare description (for P_name)
+        /// </summary>
+        private string FILENAME_DESC;
+        /// <summary>
+        /// UserName
+        /// </summary>
+        private string USER;
+        /// <summary>
+        /// UR_No
+        /// </summary>
+        private string UR_NO;
+        /// <summary>
+        /// CoverHispeedForm
+        /// </summary>
+        private CoverHispeed coverHispeed;
+        /// <summary>
+        /// List of All Channel in DB
+        /// </summary>
+        private List<string> lstChannel;
+        /// <summary>
+        /// Variable keep script for write text
+        /// </summary>
+        private string Write_SQL = "";
+        /// <summary>
+        /// boolean for check write sql or not
+        /// </summary>
+        private bool isExport;
+        /// <summary>
+        /// Flag for check process complete when you want to close program
+        /// </summary>
+        private bool flagClose;
+        /// <summary>
+        /// Collect system log
+        /// </summary>
+        private string systemLog;
+        /// <summary>
+        /// App path
+        /// </summary>
+        private string RunningPath;
+        /// <summary>
+        /// Collect value for check duplicate when exporting data
+        /// </summary>
+        private Dictionary<string, int> TempExport;
+        /// <summary>
+        /// Collect pName
+        /// </summary>
+        private Dictionary<string, string> TempPName;
+
+        private ViewResult resultForm;
+
+        private DialogMessage dialogMessage;
+
+        private bool isPromo;
+
+        string invalidSpeed;
+        string invalidContractCode;
+        string invalidMKTCode;
+        string invalidChannel;
+        string invalidUOM;
+        string invalidEndDate;
+
+        //For move form
+        int mov;
+        int movX;
+        int movY;
+
+        //For maximize form
+        int maximize = 1;
+        #endregion
+
+        public ViewHispeed(CoverHispeed form, OracleConnection con,
+            string filename, string fileDesc, string user, string ur)
+        {
+            InitializeComponent();
+
+            CONNECTION = con;
+            coverHispeed = form;
+            FILENAME = filename;
+            FILENAME_DESC = fileDesc;
+            USER = user;
+            UR_NO = ur;
+        }
+
+        #region "Drop Shadow"
+        private const int CS_DropShadow = 0x00020000;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                cp.ClassStyle |= CS_DropShadow;
+                return cp;
+            }
+        }
+        #endregion
+
+        #region "Event handle"
+        private void ViewHispeed_Load(object sender, EventArgs e)
+        {
+            coverHispeed.Hide();
+            toolStripLabel1.Text = FILENAME;
+            this.dataGridView1.AllowUserToAddRows = false;
+
+            RunningPath = AppDomain.CurrentDomain.BaseDirectory;
+
+            ViewInputPromo();
+        }
+
+        private void btnClose_Click(object sender, EventArgs e)
+        {
+            CONNECTION.Close();
+            CONNECTION.Dispose();
+
+            Application.Exit();
+        }
+
+        private void ViewHispeed_SizeChanged(object sender, EventArgs e)
+        {
+            int w = this.Size.Width;
+            int h = this.Size.Height;
+
+            btnOK.Location = new Point((w - panelHome.Width) + 60, h - 105);
+
+            btnClose.Location = new Point(w - 23, 0);
+            btnMinimize.Location = new Point(w - 88, 3);
+            btnMaximize.Location = new Point(w - 53, 3);
+
+            dataGridView1.Size = new Size(w - panelHome.Width, h - 280);
+        }
+
+        private void btnOK_Click(object sender, EventArgs e)
+        {
+            if (invalidMKTCode != "" && invalidSpeed != "" && invalidContractCode != ""
+                && invalidUOM != "" && invalidEndDate != "")
+            {
+                MessageBox.Show("Please revise data following red row and validate data again." + "\r\n" + "You can see more detail in log file.",
+                  "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else if (invalidChannel != "")
+            {
+                DialogResult result = MessageBox.Show("The channels are not found in the database." + "\r\n" + "Do you want to continue?", "Confirmation"
+                    , MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (result == DialogResult.Yes)
+                {
+                    isExport = false;
+                    Execute();
+                }
+            }
+            else
+            {
+                isExport = false;
+                Execute();
+            }
+        }
+
+        private void panel1_MouseDown(object sender, MouseEventArgs e)
+        {
+            mov = 1;
+            movX = e.X;
+            movY = e.Y;
+        }
+
+        private void panel1_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (mov == 1)
+            {
+                this.SetDesktopLocation(MousePosition.X - movX, MousePosition.Y - movY);
+            }
+        }
+
+        private void panel1_MouseUp(object sender, MouseEventArgs e)
+        {
+            mov = 0;
+        }
+
+        private void btnMaximize_Click(object sender, EventArgs e)
+        {
+            if (maximize == 1)
+            {
+                this.WindowState = FormWindowState.Maximized;
+                maximize = 0;
+            }
+            else
+            {
+                this.WindowState = FormWindowState.Normal;
+                this.Size = new Size(1084, 647);
+                maximize = 1;
+            }
+        }
+
+        private void btnMinimize_Click(object sender, EventArgs e)
+        {
+            this.WindowState = FormWindowState.Minimized;
+        }
+
+        private void ViewHispeed_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            string message = "";
+            if (flagClose == false)
+            {
+                e.Cancel = true;
+            }
+            else
+            {
+                try
+                {
+                    if (CONNECTION71.State != ConnectionState.Open)
+                    {
+                        try
+                        {
+                            CONNECTION71.Open();
+                        }
+                        catch
+                        {
+                            CONNECTION71.ConnectionString = connString71;
+                            CONNECTION71.Open();
+                        }
+                    }
+
+                    string query = "SELECT * FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Hispeed' AND COMPLETE_FLAG = 'N'";
+
+                    OracleCommand cmd = new OracleCommand(query, CONNECTION71);
+                    OracleDataReader reader = cmd.ExecuteReader();
+                    reader.Read();
+                    if (reader.HasRows)
+                    {
+                        reader.Close();
+
+                        message = "Can't delete row COMPLETE_FLAG = 'N' in database." + "\r\n" + "Please manual delete data from database";
+                        string qryDel = "DELETE FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Hispeed' AND COMPLETE_FLAG = 'N'";
+                        OracleCommand command = new OracleCommand(qryDel, CONNECTION71);
+                        command.ExecuteNonQuery();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    string log = ex.Message;
+                    MessageBox.Show(message + "\r\n" + "Please find more details as log file.");
+
+                    System.IO.FileInfo fInfo = new System.IO.FileInfo(FILENAME);
+                    string strFilePath = fInfo.DirectoryName + "\\System Error" + UR_NO + ".txt";
+
+                    using (StreamWriter writer = new StreamWriter(strFilePath, true))
+                    {
+                        writer.Write(log);
+                    }
+
+                    CONNECTION71.Close();
+
+                    Application.Exit();
+                }
+            }
+
+            if (CONNECTION.State == ConnectionState.Open)
+            {
+                CONNECTION.Close();
+                CONNECTION.Dispose();
+            }
+
+            if (CONNECTION71.State == ConnectionState.Open)
+            {
+                CONNECTION71.Close();
+                CONNECTION71.Dispose();
+            }
+
+        }
+
+        private void btnBack_Click(object sender, EventArgs e)
+        {
+            this.Close();
+            coverHispeed.Show();
+        }
+
+        private void pictureBoxExport_MouseHover(object sender, EventArgs e)
+        {
+            Cursor.Current = Cursors.Hand;
+        }
+
+        private void pictureBoxExport_Click(object sender, EventArgs e)
+        {
+            if (invalidMKTCode != "" && invalidSpeed != "" && invalidContractCode != ""
+                 && invalidUOM != "" && invalidEndDate != "")
+            {
+                MessageBox.Show("Please revise data following red row and validate data again." + "\r\n" + "You can see more detail in log file.",
+                  "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else if (invalidChannel != "")
+            {
+                DialogResult result = MessageBox.Show("The channels are not found in the database." + "\r\n" + "Do you want to continue?", "Confirmation"
+                    , MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (result == DialogResult.Yes)
+                {
+                    isExport = true;
+                    Execute();
+                }
+            }
+            else
+            {
+                isExport = true;
+                Execute();
+            }
+        }
+
+        private void pictureBoxValidate_MouseHover(object sender, EventArgs e)
+        {
+            Cursor.Current = Cursors.Hand;
+        }
+
+        private void pictureBoxValidate_Click(object sender, EventArgs e)
+        {
+            Cursor.Current = Cursors.WaitCursor;
+
+            dataGridView1.EndEdit();
+            dataGridView1.Update();
+
+            Verify_Data();
+            dataGridView1.Refresh();
+
+            Cursor.Current = Cursors.Default;
+        }
+
+        private void pictureBox1_Click_1(object sender, EventArgs e)
+        {
+            coverHispeed.Show();
+            this.Hide();
+        }
+
+        private void pictureBox1_MouseHover_1(object sender, EventArgs e)
+        {
+            Cursor.Current = Cursors.Hand;
+        }
+        #endregion
+
+        /// <summary>
+        /// Show data from Sheet Campaign Mapping
+        /// </summary>
+        private void ViewInputCampaign()
+        {
+
+        }
+
+        /// <summary>
+        /// Show data from file excel (requirement)
+        /// </summary>
+        private void ViewInputPromo()
+        {
+            Cursor.Current = Cursors.WaitCursor;
+            ChangeFormat changeFormateDT = new ChangeFormat();
+            TempPName = new Dictionary<string, string>();
+
+            //CONNECTION71 = new OracleConnection(); 
+            //connString71 = "Data Source=(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.193.20)(PORT = 1560))" +
+            //       "(CONNECT_DATA = (SID = TEST03)));User Id= TRUREF71; Password= TRUREF71;";
+
+            try
+            {
+                //CONNECTION71.ConnectionString = connString71;
+
+                CONNECTION71 = CONNECTION;
+                //CONNECTION71.Open();
+
+                //Load data from file new MKT
+                if (FILENAME_DESC != "")
+                {
+                    if (System.IO.File.Exists(FILENAME_DESC))
+                    {
+                        string connString = string.Format(@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Extended Properties=""Excel 8.0;HDR=YES;IMEX=1;""", FILENAME_DESC);
+                        string query = string.Format("select * from [VCARE-MKT$A:M]", connString);
+                        OleDbDataAdapter dtAdapter = new OleDbDataAdapter(query, connString);
+                        DataSet ds = new DataSet();
+                        dtAdapter.Fill(ds);
+                        DataTable dt = ds.Tables[0];
+                        //Remove head
+                        for (int i = 0; i <= 3; i++)
+                        {
+                            dt.Rows.RemoveAt(i);
+                            dt.AcceptChanges();
+                        }
+
+                        foreach (DataRow dr in dt.Rows)
+                        {
+                            string mkt = dr[1].ToString();
+                            string name = dr[3].ToString();
+
+                            if (mkt != "" && name != "")
+                            {
+                                TempPName.Add(mkt, name);
+                            }
+                        }
+                    }
+                }
+
+                //Load data from file input (requirement)
+                if (System.IO.File.Exists(FILENAME))
+                {
+                    string connString = string.Format(@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Extended Properties=""Excel 8.0;HDR=YES;IMEX=1;""", FILENAME);
+                    string query = string.Format("select * from [HiSpeed Promotion$A:M]", connString);
+                    OleDbDataAdapter dtAdapter = new OleDbDataAdapter(query, connString);
+                    DataSet dataset = new DataSet();
+                    DataTable dt = new DataTable();
+                    dtAdapter.Fill(dt);
+
+                    //Remove head
+                    for (int i = 0; i <= 3; i++)
+                    {
+                        dt.Rows.RemoveAt(i);
+                        dt.AcceptChanges();
+                    }
+
+                    dataGridView1.DataSource = dt.DefaultView;
+
+                    //Set header
+                    dataGridView1.Columns[0].HeaderText = "MKT Code";
+                    dataGridView1.Columns[1].HeaderText = "Speed";
+                    dataGridView1.Columns[2].HeaderText = "Sub Profile";
+                    dataGridView1.Columns[3].HeaderText = "Price";
+                    dataGridView1.Columns[4].HeaderText = "Order_Type";
+                    dataGridView1.Columns[5].HeaderText = "Channel";
+                    dataGridView1.Columns[6].HeaderText = "Modem_Type";
+                    dataGridView1.Columns[7].HeaderText = "Docsis_Type";
+                    dataGridView1.Columns[8].HeaderText = "Effective";
+                    dataGridView1.Columns[9].HeaderText = "End Date";
+                    dataGridView1.Columns[10].HeaderText = "Entry Code";
+                    dataGridView1.Columns[11].HeaderText = "Installation Code";
+
+                    dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font(DataGridView.DefaultFont, FontStyle.Bold);
+                    dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.DarkOrange;
+                    dataGridView1.EnableHeadersVisualStyles = false;
+
+                    //Change format date to dd/MM/yyyy
+                    for (int i = 0; i < dataGridView1.RowCount; i++)
+                    {
+                        //remove emtry row
+                        if (dataGridView1.Rows[i].Cells[0].Value.ToString() == "")
+                        {
+                            dataGridView1.Rows.RemoveAt(i);
+                            i--;
+                        }
+                        else
+                        {
+                            string start = dataGridView1.Rows[i].Cells[8].Value.ToString();
+                            string end = dataGridView1.Rows[i].Cells[9].Value.ToString();
+                            string ChAll = dataGridView1.Rows[i].Cells[5].Value.ToString().ToUpper();
+
+                            //Effective Date
+                            dataGridView1.Rows[i].Cells[8].Value = changeFormateDT.formatDate(start);
+                            //Expire Date
+                            dataGridView1.Rows[i].Cells[9].Value = changeFormateDT.formatDate(end);
+
+                            //Change channel "ALL" to "DEFAULT"
+                            if (ChAll.Contains("ALL"))
+                            {
+                                ChAll = ChAll.Replace("ALL", "DEFAULT");
+                                dataGridView1.Rows[i].Cells[5].Value = ChAll;
+                            }
+                        }
+                    }
+
+                    if (dataGridView1.Rows[dataGridView1.RowCount - 1].Cells[0].Value.ToString() == "")
+                    {
+                        dataGridView1.Rows.RemoveAt(dataGridView1.RowCount - 1);
+                    }
+
+                    lstChannel = GetChannelFromDB();
+
+                    Verify_Data();
+                }
+            }
+            catch (Exception ex)
+            {
+                flagClose = true;
+                MessageBox.Show("Cannot read data from file input." + "\r\n" +
+                    "Please check the file format" + "\r\n" + ex.Message);
+            }
+            finally
+            {
+                Cursor.Current = Cursors.Default;
+            }
+        }
+
+        /// <summary>
+        /// Get channel from DB
+        /// </summary>
+        /// <returns>List of channel in DB</returns>
+        private List<string> GetChannelFromDB()
+        {
+            List<string> lstChannelFromDB = new List<string>();
+
+            try
+            {
+                //get all channel in DB
+                string query1 = "SELECT DISTINCT(SALE_CHANNEL) FROM HISPEED_CHANNEL_PROMOTION";
+                OracleCommand cmd1 = new OracleCommand(query1, CONNECTION);
+                OracleDataReader reader = cmd1.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    lstChannelFromDB.Add(reader["SALE_CHANNEL"].ToString());
+                }
+
+                reader.Close();
+                reader.Dispose();
+            }
+            catch (Exception ex)
+            {
+                string msg = "Cannot get sale channel from database. Please check connection";
+
+                MessageBox.Show(msg, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                CONNECTION.Close();
+                CONNECTION.Dispose();
+                CONNECTION71.Close();
+                CONNECTION71.Dispose();
+                Environment.Exit(0);
+            }
+
+            return lstChannelFromDB;
+        }
+
+        /// <summary>
+        /// Get PName (Description of package) from file excel
+        /// </summary>
+        private void GetPName()
+        {
+           
+
+
+            //From DB
+            string queryPName = "SELECT X.ATTRIB_04 MKT, S.NAME FROM SIEBEL.S_PROD_INT S , SIEBEL.S_PROD_INT_X  X WHERE S.ROW_ID = X.ROW_ID AND X.ATTRIB_04 = '" + mktCode + "'";
+            OracleCommand command = new OracleCommand(queryPName, CONNECTION);
+            OracleDataReader reader = command.ExecuteReader();
+            reader.Read();
+            if (reader.HasRows)
+            {
+                pName = reader["NAME"].ToString();
+                reader.Close();
+            }
+            else
+            {
+                
+                else
+                {
+
+                    DialogResult result = MessageBox.Show("Not found P_Name(description of Offer) in database or file." + "\r\n" +
+                        "Do you want to continue?" + "\r\n" + "If you continue, P_name is marketing code", "Confirmation",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (result == DialogResult.Yes)
+                    {
+                        pName = mktCode;
+                    }
+                    else
+                    {
+                        //????
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Process for verify data from file excel
+        /// </summary>
+        private void Verify_Data()
+        {
+            string ValidateLog = "";
+            OracleDataReader reader = null;
+
+            invalidSpeed = "";
+            invalidContractCode = "";
+            invalidMKTCode = "";
+            invalidChannel = "";
+            invalidUOM = "";
+            invalidEndDate = "";
+         
+            try
+            {
+                flagClose = true;
+                for (int i = 0; i < dataGridView1.RowCount; i++)
+                {
+                    //Clear selection
+                    dataGridView1.Rows[i].Cells[0].Style.BackColor = Color.Empty;
+                    dataGridView1.Rows[i].Cells[1].Style.BackColor = Color.Empty;
+                    dataGridView1.Rows[i].Cells[10].Style.BackColor = Color.Empty;
+                    dataGridView1.Rows[i].Cells[11].Style.BackColor = Color.Empty;
+                    dataGridView1.Rows[i].Cells[5].Style.BackColor = Color.Empty;
+
+                    dataGridView1.ClearSelection();
+
+                    //-----Check speed ----
+                    //Speed from MKT Code
+                    string mkt = dataGridView1.Rows[i].Cells[0].Value.ToString();
+                    string[] arMkt = mkt.Split('-');
+                    string mktCode = arMkt[0];
+                    string speedMkt = arMkt[1];
+
+                    //Download speed -- > before '/'
+                    string speed = dataGridView1.Rows[i].Cells[1].Value.ToString();
+                    string[] spSpeed = speed.Split('/');
+                    string downSp = spSpeed[0];
+                    string upSpeed = spSpeed[1];
+
+                    //Keep only numeric
+                    speedMkt = speedMkt.Trim();
+                    string downSpeed = Regex.Replace(downSp, "[^0-9]", "");
+
+                    if (speedMkt != downSpeed)
+                    {
+                        if (downSp.Contains("G"))
+                        {
+                            string cvMkt = ((Convert.ToInt32(speedMkt)) / 1000).ToString();
+
+                            if (cvMkt != downSpeed)
+                            {
+                                invalidSpeed += "\r\n" + "          MKT : " + mkt + " , Download Speed : " + downSp;
+                                dataGridView1.Rows[i].Cells[0].Style.BackColor = Color.Red;
+                                dataGridView1.Rows[i].Cells[1].Style.BackColor = Color.Red;
+                            }
+                        }
+                        else
+                        {
+                            invalidSpeed += "\r\n" + "          MKT : " + mkt + " , Download Speed : " + downSp;
+                            dataGridView1.Rows[i].Cells[0].Style.BackColor = Color.Red;
+                            dataGridView1.Rows[i].Cells[1].Style.BackColor = Color.Red;
+                        }
+                    }
+
+                    //Check uom (Both of down&up speed don't have character for define UOM)
+                    int num;
+                    if (int.TryParse(downSp, out num) && int.TryParse(upSpeed, out num))
+                    {
+                        dataGridView1.Rows[i].Cells[1].Style.BackColor = Color.Red;
+                        invalidUOM += "\r\n" + "          MKT : " + mkt + " , Speed : " + speed;
+                    }
+
+                    //--------- Check format contract code (10digit) -------------
+                    string entryCode = dataGridView1.Rows[i].Cells[10].Value.ToString();
+                    string installCode = dataGridView1.Rows[i].Cells[11].Value.ToString();
+
+                    int indexEnt = entryCode.IndexOf('(');
+                    int indexIns = installCode.IndexOf('(');
+
+                    entryCode = entryCode.Substring(0, indexEnt).Trim();
+                    installCode = installCode.Substring(0, indexIns).Trim();
+
+                    if (entryCode.Length != 10)
+                    {
+                        dataGridView1.Rows[i].Cells[10].Style.BackColor = Color.Red;
+                        invalidContractCode += "\r\n" + "          MKT : " + mkt + " , EntryCode : " + entryCode;
+                    }
+
+                    if (installCode.Length != 10)
+                    {
+                        dataGridView1.Rows[i].Cells[11].Style.BackColor = Color.Red;
+                        invalidContractCode += "\r\n" + "          MKT : " + mkt + " , InstrallationCode : " + installCode;
+                    }
+
+                    //------- Check prefix MKT Code -------
+
+                    string prefixMKT;
+                    if (mktCode.StartsWith("TRL"))
+                    {
+                        prefixMKT = mktCode.Substring(0, 5);
+                    }
+                    else
+                    {
+                        prefixMKT = mktCode.Substring(0, 2);
+                    }
+
+                    string query = "SELECT * FROM TRUE9_BPT_HISPEED_PRODTYPE WHERE MKT = '" + prefixMKT + "'";
+                    OracleCommand cmd = new OracleCommand(query, CONNECTION71);
+                    reader = cmd.ExecuteReader();
+
+                    if (reader.HasRows == false)
+                    {
+                        dataGridView1.Rows[i].Cells[0].Style.BackColor = Color.Red;
+                        invalidMKTCode += "\r\n" + "          MKT : " + mkt + " prefix : " + prefixMKT;
+                    }
+
+                    //-----------Check channel ----------
+                    string channel = dataGridView1.Rows[i].Cells[5].Value.ToString();
+
+                    if (channel != "")
+                    {
+                        if (channel.Contains(','))
+                        {
+                            string[] lstCh = channel.Split(',');
+                            foreach (string ch in lstCh)
+                            {
+                                if (ch == "ALL")
+                                {
+                                    //conflict
+                                    dataGridView1.Rows[i].Cells[5].Style.BackColor = Color.Red;
+                                    invalidChannel += "\r\n" + "          MKT : " + mkt + " -- > There should not be 'ALL' channel included with other channel";
+                                    break;
+                                }
+                            }
+                        }
+
+                        //Check channel compare with DB
+                        List<string> lstInvaid = CheckChannel(channel);
+
+                        if (lstInvaid.Count > 0)
+                        {
+                            string invalid = "";
+                            dataGridView1.Rows[i].Cells[5].Style.BackColor = Color.Red;
+                            foreach (string val in lstInvaid)
+                            {
+                                invalid += val + ", ";
+                            }
+
+                            invalid = invalid.Substring(0, invalid.Length - 2);
+                            invalidChannel += "\r\n" + "          MKT : " + mkt + " Channel : " + invalid + " -- > The channel not found in database";
+                        }
+                    }
+                    else
+                    {
+                        string endDateF = dataGridView1.Rows[i].Cells[9].Value.ToString();
+                        if (endDateF == "")
+                        {
+                            dataGridView1.Rows[i].Cells[9].Style.BackColor = Color.Red;
+                            invalidEndDate += "\r\n" + "          MKT : " + mkt + " -- > Invalid End date because if channel is empty, the date must not be empty";
+                        }
+                    }
+
+           
+                 
+                }
+            }
+            catch (Exception ex)
+            {
+                ValidateLog += "[System Error][" + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + "]    " + ex.ToString();
+            }
+
+            if (invalidSpeed != "")
+            {
+                ValidateLog += "[Speed][" + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + "]  Mismatch Speed " + invalidSpeed + "\r\n";
+            }
+
+            if (invalidChannel != "")
+            {
+                ValidateLog += "[Channel][" + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + "] " + invalidChannel + "\r\n";
+            }
+
+            if (invalidContractCode != "")
+            {
+                ValidateLog += "[Contract Code][" + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + "]  The format of contract code is invalid. " + invalidContractCode + "\r\n";
+            }
+
+            if (invalidMKTCode != "")
+            {
+                ValidateLog += "[Marketing Code][" + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + "]  The prefix of MKT Code not found in database. " + invalidMKTCode + "\r\n";
+            }
+            if (invalidUOM != "")
+            {
+                ValidateLog += "[UOM][" + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + "]  The speed don't have UOM " + invalidUOM + "\r\n";
+            }
+            if (invalidEndDate != "")
+            {
+                ValidateLog += "[End Date][" + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + "] " + invalidEndDate + "\r\n";
+            }
+
+            if (ValidateLog != "")
+            {
+                System.IO.FileInfo fInfo = new System.IO.FileInfo(FILENAME);
+                string strFilePath = fInfo.DirectoryName + "\\Log_" + UR_NO + ".txt";
+
+                using (StreamWriter writer = new StreamWriter(strFilePath, true))
+                {
+                    writer.Write(ValidateLog);
+                }
+
+            }
+
+        }
+
+        /// <summary>
+        /// Check channel from file compare with channel in database
+        /// </summary>
+        /// <param name="ch"></param>
+        /// <returns></returns>
+        private List<string> CheckChannel(string ch)
+        {
+            List<string> lstInvaid = new List<string>();
+
+            if (ch.Contains(","))
+            {
+                string[] arrayCh = ch.Split(',');
+
+                foreach (string val in arrayCh)
+                {
+                    if (lstChannel.Contains(val) == false)
+                    {
+                        lstInvaid.Add(val);
+                    }
+                }
+            }
+            else
+            {
+                if (lstChannel.Contains(ch) == false)
+                {
+                    lstInvaid.Add(ch);
+                }
+            }
+
+            return lstInvaid;
+        }
+
+        /// <summary>
+        /// Reserve minID into TRUE9_BPT_RESERVE_ID
+        /// </summary>
+        /// <returns></returns>
+        private int ReserveID()
+        {
+            OracleCommand cmd = null;
+            int MinID = 0;
+
+            try
+            {
+                //Check complete flag in TRUREF71
+                string query = "SELECT * FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Hispeed' AND COMPLETE_FLAG = 'N'";
+
+                cmd = new OracleCommand(query, CONNECTION71);
+                OracleDataReader reader = cmd.ExecuteReader();
+                reader.Read();
+                if (reader.HasRows)
+                {
+                    string user = reader["USERNAME"].ToString();
+
+                    if (user == USER)
+                    {
+                        string qryDel = "DELETE FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Hispeed' AND COMPLETE_FLAG = 'N'";
+                        OracleCommand command = new OracleCommand(qryDel, CONNECTION71);
+
+                        command.ExecuteNonQuery();
+                    }
+                    else
+                    {
+                        MessageBox.Show("UserName : " + user + " is in the process of inserting.");
+
+                        //string msg = "UserName : " + user + " is in the process of inserting.";
+                        //Color color = Color.FromArgb(204, 28, 68);
+
+                        //string FileName = string.Format("{0}Resources\\Error.png",
+                        //    Path.GetFullPath(Path.Combine(RunningPath, @"..\")));
+
+                        //dialogMessage = new DialogMessage(msg, color, FileName);
+                        //dialogMessage.ShowDialog();
+
+                        CONNECTION.Close();
+                        CONNECTION71.Close();
+                        Environment.Exit(0);
+                    }
+                }
+
+                int max = 0;
+                string queryMax = "SELECT MAX(P_ID) FROM HISPEED_PROMOTION WHERE P_ID LIKE '200%'";
+
+                string queryMax_reserve = "SELECT MAX(MAX_ID) FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Hispeed'";
+
+                cmd = new OracleCommand(queryMax, CONNECTION);
+
+                OracleDataReader readerMax = cmd.ExecuteReader();
+                readerMax.Read();
+                MinID = Convert.ToInt32(readerMax[0]) + 1;
+
+                OracleCommand command1 = new OracleCommand(queryMax_reserve, CONNECTION71);
+                OracleDataReader dataReader = command1.ExecuteReader();
+                dataReader.Read();
+
+                if (dataReader[0] != DBNull.Value)
+                {
+                    max = Convert.ToInt32(dataReader[0]);
+                }
+                else
+                {
+                    max = MinID - 1;
+                }
+
+                if (MinID <= max)
+                {
+                    MessageBox.Show("There is a conflict between the ID from the production and the ID from reserve base.");
+
+                    //string msg = "There is a conflict between the ID from the production and the ID from reserve base.";
+                    //Color color = Color.FromArgb(204, 28, 68);
+
+                    //string FileName = string.Format("{0}Resources\\Error.png",
+                    //    Path.GetFullPath(Path.Combine(RunningPath, @"..\")));
+
+                    //dialogMessage = new DialogMessage(msg, color, FileName);
+                    //dialogMessage.ShowDialog();
+
+                    CONNECTION.Close();
+                    CONNECTION71.Close();
+                    Environment.Exit(0);
+                }
+                else
+                {
+                    //Insert maxID for reserve
+                    OracleCommand command = CONNECTION71.CreateCommand();
+                    OracleTransaction transaction;
+
+                    transaction = CONNECTION71.BeginTransaction(IsolationLevel.ReadCommitted);
+                    command1.Transaction = transaction;
+
+                    try
+                    {
+                        command1.CommandText = "INSERT INTO TRUE9_BPT_RESERVE_ID VALUES ('Hispeed','N','" + MinID + "','null','" +
+                            UR_NO + "','" + USER + "',sysdate)";
+
+                        command1.CommandType = CommandType.Text;
+
+                        command1.ExecuteNonQuery();
+                        transaction.Commit();
+                    }
+                    catch (Exception ex)
+                    {
+                        transaction.Rollback();
+                        //Console.WriteLine("No record was inserted into the database table.");
+                        throw new Exception("Can't insert Min_ID in table TRUE9_BPT_RESERVE_ID" + ex.Message);
+                    }
+                }
+
+                readerMax.Close();
+                readerMax.Dispose();
+                dataReader.Close();
+                dataReader.Dispose();
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                CONNECTION.Close();
+                CONNECTION71.Close();
+                Environment.Exit(0);
+            }
+
+            return MinID;
+        }
+
+        /// <summary>
+        /// Main process
+        /// </summary>
+        private void Execute()
+        {
+            Cursor.Current = Cursors.WaitCursor;
+
+            TempExport = new Dictionary<string, int>();
+            flagClose = false;
+            string[] lstOrder = new string[2];
+            int id = 0;
+            systemLog = "";
+
+            //get min_id
+            int minID = ReserveID();
+            int maxID = minID - 1;
+            string lstID = "";
+            try
+            {
+                for (int i = 0; i < dataGridView1.RowCount; i++)
+                {
+                    //Clear list order type
+                    Array.Clear(lstOrder, 0, lstOrder.Length);
+                    //keep value for tempExport
+                    Dictionary<int, List<string>> valueTemp = new Dictionary<int, List<string>>();
+                    //Get MKT code from file
+                    string mktCode = dataGridView1.Rows[i].Cells[0].Value.ToString();
+                    string[] mkt = mktCode.Split('-');
+                    string pCodeF = mkt[0];
+
+                    //Get speed from file
+                    string[] speed = dataGridView1.Rows[i].Cells[1].Value.ToString().Split('/');
+                    string download = Regex.Replace(speed[0], "[^0-9]", "");
+                    string upload = Regex.Replace(speed[1], "[^0-9]", "");
+
+                    int num;
+                    string downUOM;
+                    string upUOM;
+                    //Get UOM download speed
+                    if (int.TryParse(speed[0], out num))
+                    {
+                        downUOM = Regex.Replace(speed[1], "[0-9]", "");
+                    }
+                    else
+                    {
+                        downUOM = Regex.Replace(speed[0], "[0-9]", "");
+                    }
+                    //Get UOM upload speed
+                    if (int.TryParse(speed[1], out num))
+                    {
+                        upUOM = Regex.Replace(speed[0], "[0-9]", "");
+                    }
+                    else
+                    {
+                        upUOM = Regex.Replace(speed[1], "[0-9]", "");
+                    }
+
+                    //Get order type from file
+                    string orderType = dataGridView1.Rows[i].Cells[4].Value.ToString();
+                    if (orderType.Contains(","))
+                    {
+                        lstOrder = (dataGridView1.Rows[i].Cells[4].Value.ToString()).Split(',');
+                    }
+                    else
+                    {
+                        lstOrder[0] = dataGridView1.Rows[i].Cells[4].Value.ToString();
+                    }
+
+                    //Get channel from file
+                    string channelF = dataGridView1.Rows[i].Cells[5].Value.ToString();
+
+                    //Get Sub-Profile from file
+                    string subProfile = dataGridView1.Rows[i].Cells[2].Value.ToString();
+
+                    if(subProfile.StartsWith("STL"))
+                    {
+                        subProfile = "N";
+                    }
+
+                    //Get price from file
+                    double price = Convert.ToDouble(dataGridView1.Rows[i].Cells[3].Value);
+
+                    //Get start & end date from file
+                    string startDateF = dataGridView1.Rows[i].Cells[8].Value.ToString();
+                    string endDateF = dataGridView1.Rows[i].Cells[9].Value.ToString();
+                    if (endDateF == "-")
+                    {
+                        endDateF = "";
+                    }
+
+                    //Get modem & docsis type
+                    string modem = dataGridView1.Rows[i].Cells[6].Value.ToString();
+                    string docsisType = dataGridView1.Rows[i].Cells[7].Value.ToString();
+
+                    //Get contractCode from file
+                    string entryCode = dataGridView1.Rows[i].Cells[10].Value.ToString();
+                    string installCode = dataGridView1.Rows[i].Cells[11].Value.ToString();
+
+                    //Check speed in table hispeed_speed
+                    int speedID = GetSpeedID(speed[0], downUOM);
+
+                    if (speedID != 0)
+                    {
+                        //Searching P_ID from hispeed_promotion
+                        string query = "SELECT P.P_ID, P.P_CODE, P.P_NAME, P.ORDER_TYPE, P.END_DATE, P.STATUS, S.SPEED_ID, S.PRICE FROM HISPEED_PROMOTION P , " +
+                            "HISPEED_SPEED_PROMOTION S WHERE P_CODE = '" + pCodeF + "' AND SPEED_ID = " + speedID + " AND P.P_ID = S.P_ID " +
+                            "AND STATUS IN ('Active','Pending','Inactive')";
+
+                        OracleCommand cmd = new OracleCommand(query, CONNECTION);
+                        OracleDataReader reader = cmd.ExecuteReader();
+                        List<string> lstOrderDB = new List<string>();
+
+                        //Existing
+                        if (reader.HasRows)
+                        {
+                            while (reader.Read())
+                            {
+                                lstOrderDB.Add(reader["P_ID"].ToString() + "," + reader["ORDER_TYPE"].ToString() + "," + reader["STATUS"].ToString() + "," + reader["END_DATE"].ToString());
+                            }
+                            reader.Close();
+
+                            string orderDB = "";
+                            for (int j = 0; j < lstOrder.Length; j++)
+                            {
+                                for (int k = 0; k < lstOrderDB.Count; k++)
+                                {
+                                    string[] splitTxt = lstOrderDB[k].Split(',');
+                                    id = Convert.ToInt32(splitTxt[0]);
+                                    orderDB = splitTxt[1];
+                                    string statusDB = splitTxt[2];
+                                    string endDB = splitTxt[3];
+                                    string sql = "";
+
+                                    if (lstOrder[j] == orderDB)
+                                    {
+                                        if (statusDB == "Pending" || statusDB == "Inactive")
+                                        {
+                                            if (endDateF == "")
+                                            {
+                                                sql = "UPDATE HISPEED_PROMOTION SET STATUS = 'Active' , END_DATE = null WHERE P_ID = " + id;
+                                            }
+                                            else
+                                            {
+                                                DateTime dateF = Convert.ToDateTime(endDateF);
+                                                DateTime dateDb = Convert.ToDateTime(endDB);
+
+                                                if (dateF >= DateTime.Now || dateF > dateDb)
+                                                {
+                                                    sql = "UPDATE HISPEED_PROMOTION SET STATUS = 'Active' , END_DATE = TO_DATE('" + endDateF + "','dd/MM/yyyy') WHERE P_ID = " + id;
+                                                }
+                                            }
+
+                                            lstID += id + ", ";
+                                        }
+                                        else
+                                        {
+                                            //End sales
+                                            if (channelF == "")
+                                            {
+                                                sql = "UPDATE HISPEED_PROMOTION SET STATUS = 'Inactive' , END_DATE = TO_DATE('" + endDateF + "','dd/MM/yyyy') WHERE P_ID = " + id;
+                                            }
+
+                                            lstID += id + ", ";
+                                        }
+
+                                        if (isExport)
+                                        {
+                                            if (sql != "")
+                                            {
+                                                Write_SQL += sql + "\r\n";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            if (sql != "")
+                                            {
+                                                Write_SQL += sql + "\r\n";
+
+                                                //update status & end date
+                                                OracleCommand command = CONNECTION.CreateCommand();
+                                                OracleTransaction transaction = CONNECTION.BeginTransaction(IsolationLevel.ReadCommitted); ;
+                                                // Assign transaction object for a pending local transaction
+                                                command.Transaction = transaction;
+
+                                                try
+                                                {
+                                                    command.CommandText = sql;
+                                                    command.CommandType = CommandType.Text;
+
+                                                    command.ExecuteNonQuery();
+                                                    transaction.Commit();
+                                                }
+                                                catch (Exception e)
+                                                {
+                                                    transaction.Rollback();
+                                                    systemLog += DateTime.Now.ToString() + "  Cannot update status of P_ID : " + id + " into table HISPEED_PROMOTION" + "Detail : "+e.Message.ToString()+"\r\n";
+                                                }
+                                            }
+                                        }
+
+                                        //Call process for check data in table hispeed_channel_promotion
+                                        if (channelF != "")
+                                        {
+                                            Channel_Promotion(id, channelF, startDateF, endDateF);
+                                        }
+
+                                        //Check price in table hispeed_speed_promotion
+                                        HispeedSpeedPromotion(id, price, download, upload, upUOM, speedID, modem, docsisType);
+
+                                    }
+
+                                }
+                                if (lstOrder[j] != orderDB && lstOrder.Length > lstOrderDB.Count)
+                                {
+                                    //insert new orderType
+                                    maxID = maxID + 1;
+                                    lstID += maxID + ", ";
+                                    //Call process Insert new
+                                    NewHispeedPromotion(maxID, mktCode, lstOrder[j], subProfile, price, channelF, modem, docsisType, entryCode, installCode,
+                                        startDateF, endDateF, download, upload, upUOM);
+                                }
+
+                            }
+                        }
+                        else
+                        {
+                            //create new
+                            //loop for each order type from file
+                            foreach (string val in lstOrder)
+                            {
+                                if (val != null)
+                                {
+                                    maxID = maxID + 1;
+                                    lstID += maxID + ", ";
+
+                                    NewHispeedPromotion(maxID, mktCode, val, subProfile, price, channelF, modem, docsisType, entryCode,
+                                   installCode, startDateF, endDateF, download, upload, upUOM);
+
+                                    if (TempExport.ContainsKey(mktCode + "," + val) == false)
+                                    {
+                                        TempExport.Add(mktCode + "," + val, maxID);
+                                    }
+                                }
+
+                            }
+
+                        }
+                    }
+                    else
+                    {
+                        systemLog += DateTime.Now.ToString() + "  Cannot insert the data of MKT : " + mktCode + " , Speed : " + download + " because the program does not add new speed " +
+                            "into table HISPEED_SPEED" + "\r\n";
+                    }
+
+                }
+                Cursor.Current = Cursors.Default;
+
+                if (folderBrowserDialog1.ShowDialog() == DialogResult.OK)
+                {
+                    //Get path
+                    string outputPath = folderBrowserDialog1.SelectedPath;
+
+                    Cursor.Current = Cursors.WaitCursor;
+
+                    if (isExport)
+                    {
+                        if (Write_SQL == "")
+                        {
+                              MessageBox.Show("The data already exists in the database." + "\r\n" +
+                                  "The program will not insert/update the data in database so you cannot export script.", "Data already exists",
+                                  MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                            //string msg = "The data already exists in the database." + "\r\n" +
+                            //    "    The program will not insert/update the data in database so you cannot export script.";
+                            //Color color = Color.FromArgb(204, 28, 68);
+
+                            //string FileName = string.Format("{0}Resources\\Error.png",
+                            //    Path.GetFullPath(Path.Combine(RunningPath, @"..\")));
+
+                            //dialogMessage = new DialogMessage(msg, color, FileName);
+                            //dialogMessage.ShowDialog();
+                        }
+                        else
+                        {
+                            string dirPath = outputPath;
+                            string fileName = "Export_Script_" + UR_NO + ".txt";
+                            string[] files = Directory.GetFiles(dirPath);
+                            int count = files.Count(file => { return file.Contains(fileName); });
+                            string newFileName = fileName;
+
+                            //newFileName = (count == 0) ? fileName : String.Format("{0} ({1}).txt", fileName, count);
+                            if (count > 0)
+                            {
+                                DialogResult result = MessageBox.Show("There is already a file with the same name in this location" + "\r\n" +
+                                    "Do you want to replace it?", "Replace File", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+                                if (result == DialogResult.Yes)
+                                {
+                                    newFileName = String.Format("{0} ({1}).txt", fileName, count);
+
+                                }
+                            }
+
+                            string newFilePath = outputPath + "\\" + newFileName;
+                            using (StreamWriter writer = new StreamWriter(newFilePath, true))
+                            {
+                                writer.Write(Write_SQL);
+                            }
+
+                            MessageBox.Show("Your script was exported successfully");
+
+                            //string msg = "Your script was exported successfully"; ;
+                            //Color color = Color.FromArgb(15, 125, 9);
+
+                            //string FileName = string.Format("{0}Resources\\Correct.png",
+                            //    Path.GetFullPath(Path.Combine(RunningPath, @"..\")));
+
+                            //dialogMessage = new DialogMessage(msg, color, FileName);
+                            //dialogMessage.ShowDialog();
+                        }
+                    }
+                    else
+                    {
+                        lstID = lstID.Substring(0, lstID.Length - 2);
+
+                        if (systemLog != "")
+                        {
+                            string strFilePath = outputPath + "\\SystemLog " + UR_NO + ".txt";
+                            using (StreamWriter writer = new StreamWriter(strFilePath, true))
+                            {
+                                writer.Write(systemLog);
+                            }
+                        }
+
+                        resultForm = new ViewResult(null, CONNECTION, CONNECTION71, UR_NO, lstID, null, USER, "", this.Size);
+
+                        resultForm.ExportImp(outputPath);
+
+                        UpdateCompleteFlag(minID, maxID);
+
+                        MessageBox.Show("Already insert/update your data into database");
+
+                        //string msg = "Already insert/update your data into database"; ;
+                        //Color color = Color.FromArgb(15, 125, 9);
+
+                        //string FileName = string.Format("{0}Resources\\Correct.png",
+                        //    Path.GetFullPath(Path.Combine(RunningPath, @"..\")));
+
+                        //dialogMessage = new DialogMessage(msg, color, FileName);
+                        //dialogMessage.ShowDialog();
+                    }
+                }
+
+                flagClose = true;
+            }
+            catch (Exception ex)
+            {
+                Cursor.Current = Cursors.Default;
+                flagClose = true;
+                MessageBox.Show("Failed..." + "\r\n" + ex.Message);
+
+                //string msg = "Failed..." + "\r\n" + ex.Message; ;
+                //Color color = Color.FromArgb(204, 28, 68);
+
+                //string FileName = string.Format("{0}Resources\\Error.png",
+                //    Path.GetFullPath(Path.Combine(RunningPath, @"..\")));
+
+                //dialogMessage = new DialogMessage(msg, color, FileName);
+                //dialogMessage.ShowDialog();
+            }
+            finally
+            {
+                Cursor.Current = Cursors.Default;
+                Application.UseWaitCursor = false;
+
+                dataGridView1.ClearSelection();
+            }
+        }
+
+        private void Channel_Promotion(int id, string channel, string startDateF, string endDateF)
+        {
+            OracleCommand command = CONNECTION.CreateCommand();
+            OracleTransaction transaction = null;
+
+            List<string> distinctChF = new List<string>();
+            Dictionary<string, string> lstChannelDB_ID = new Dictionary<string, string>();
+
+            if (channel.Contains(","))
+            {
+                string[] lstCh = channel.Split(',');
+                // distinct channel from file
+                List<string> distinct = lstCh.Distinct().ToList();
+                distinctChF = distinct;
+            }
+            else
+            {
+                distinctChF.Add(channel);
+            }
+
+            try
+            {
+                //Get channel from DB
+                string query = "SELECT * FROM HISPEED_CHANNEL_PROMOTION WHERE P_ID = " + id;
+
+                OracleCommand cmd = new OracleCommand(query, CONNECTION);
+                OracleDataReader reader = cmd.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    lstChannelDB_ID.Add(reader["SALE_CHANNEL"].ToString(), (reader["START_DATE"].ToString() + "," + reader["END_DATE"].ToString()));
+                }
+                ///**** check if end date (DB) = null , what is the return value
+                reader.Close();
+            }
+            catch (Exception e)
+            { }
+
+            foreach (string chF in distinctChF)
+            {
+                if (lstChannel.Contains(chF))
+                {
+                    //Existing channel
+                    if (lstChannelDB_ID.Keys.Contains(chF))
+                    {
+                        string[] date = lstChannelDB_ID[chF].Split(',');
+                        string startCh = date[0];
+                        string endCh = date[1];
+
+                        DateTime startF = Convert.ToDateTime(startDateF);
+                        DateTime startDB = Convert.ToDateTime(startCh);
+
+                        if (startF > startDB)
+                        {
+                            string cmdTxt = "UPDATE HISPEED_CHANNEL_PROMOTION SET START_DATE = TO_DATE('" + startDateF + "','dd/MM/yyyy') WHERE P_ID = " + id +
+                                            " AND SALE_CHANNEL = '" + chF + "'";
+
+                            if (isExport)
+                            {
+                                if (cmdTxt != "")
+                                {
+                                    Write_SQL += cmdTxt + "\r\n";
+                                }
+                            }
+                            else
+                            {
+                                Write_SQL += cmdTxt + "\r\n";
+
+                                //update start date
+                                using (transaction = CONNECTION.BeginTransaction())
+                                {
+                                    try
+                                    {
+                                        command = new OracleCommand(cmdTxt, CONNECTION, transaction);
+                                        command.ExecuteNonQuery();
+
+                                        transaction.Commit();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        transaction.Rollback();
+
+                                        systemLog += DateTime.Now.ToString() + "  Cannot update end date of channel '" + chF + "' to P_ID : " + id + " Detail : "+
+                                            ex.Message.ToString()+"\r\n";
+                                    }
+                                }
+                            }
+                        }
+
+                        if (endDateF != endCh)
+                        {
+                            string cmdTxt = "UPDATE HISPEED_CHANNEL_PROMOTION SET END_DATE = TO_DATE('" + endDateF + "','dd/MM/yyyy') WHERE P_ID = " + id +
+                                            " AND SALE_CHANNEL = '" + chF + "'";
+
+                            if (isExport)
+                            {
+                                if (cmdTxt != "")
+                                {
+                                    Write_SQL += cmdTxt + "\r\n";
+                                }
+                            }
+                            else
+                            {
+                                Write_SQL += cmdTxt + "\r\n";
+
+                                //update end date
+                                using (transaction = CONNECTION.BeginTransaction())
+                                {
+                                    try
+                                    {
+                                        command = new OracleCommand(cmdTxt, CONNECTION, transaction);
+                                        command.ExecuteNonQuery();
+
+                                        transaction.Commit();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        transaction.Rollback();
+
+                                        systemLog += DateTime.Now.ToString() + "  Cannot update end date of channel '" + chF + "' to P_ID : " + id + " Detail : " +
+                                            ex.Message.ToString() + "\r\n";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //insert new channel
+                        string cmdTxt = "INSERT INTO HISPEED_CHANNEL_PROMOTION VALUES(" + id + ", '" + chF + "', TO_DATE('" + startDateF + "','dd/MM/yyyy'), " +
+                            "TO_DATE('" + endDateF + "','dd/MM/yyyy'), 'S')";
+
+                        if (isExport)
+                        {
+                            if (cmdTxt != "")
+                            {
+                                Write_SQL += cmdTxt + "\r\n";
+                            }
+                        }
+                        else
+                        {
+                            Write_SQL += cmdTxt + "\r\n";
+
+                            using (transaction = CONNECTION.BeginTransaction())
+                            {
+                                try
+                                {
+                                    command = new OracleCommand(cmdTxt, CONNECTION, transaction);
+                                    command.ExecuteNonQuery();
+
+                                    transaction.Commit();
+                                }
+                                catch (Exception ex)
+                                {
+                                    transaction.Rollback();
+
+                                    systemLog += DateTime.Now.ToString() + "  Cannot add channel : " + chF + " to P_ID : " + id + " Detail : " +
+                                            ex.Message.ToString() + "\r\n";
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void HispeedSpeedPromotion(int id, double priceF, string download, string upload, string upUOM, int speedID, string modem, string Tdocsis)
+        {
+            OracleCommand command = CONNECTION.CreateCommand();
+            OracleTransaction transaction = null;
+
+            //Get channel from DB
+            string query = "SELECT * FROM HISPEED_SPEED_PROMOTION WHERE P_ID = " + id;
+
+            OracleCommand cmd = new OracleCommand(query, CONNECTION);
+            OracleDataReader reader = cmd.ExecuteReader();
+            reader.Read();
+            if (reader.HasRows)
+            {
+                double rateDB = Convert.ToDouble(reader["PRICE"].ToString());
+
+                if (rateDB != priceF)
+                {
+                    string cmdTxt = "UPDATE HISPEED_SPEED_PROMOTION SET PRICE = " + priceF + " WHERE P_ID = " + id;
+
+                    if (isExport)
+                    {
+                        if (cmdTxt != "")
+                        {
+                            Write_SQL += cmdTxt + "\r\n" + "\r\n";
+                        }
+                    }
+                    else
+                    {
+                        Write_SQL += cmdTxt + "\r\n" + "\r\n";
+
+                        DialogResult dialog = MessageBox.Show("Do you want to revise rate in table Hispeed_Speed_Promotion?", "Rate Changed",
+                            MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+
+                        if (dialog == DialogResult.OK)
+                        {
+                            //update rate
+                            using (transaction = CONNECTION.BeginTransaction())
+                            {
+                                try
+                                {
+                                    command = new OracleCommand(cmdTxt, CONNECTION, transaction);
+                                    command.ExecuteNonQuery();
+
+                                    transaction.Commit();
+                                }
+                                catch (Exception ex)
+                                {
+                                    transaction.Rollback();
+
+                                    systemLog += DateTime.Now.ToString() + "  Cannot update the new price of P_ID : " + id + " Detail : " +
+                                            ex.Message.ToString() + "\r\n";
+                                }
+
+                            }
+                        }
+                    }
+
+                }
+            }
+            else
+            {
+                //insert new
+                string upload_K = ConvertSpeed(upload, upUOM);
+
+                string cmdTxt = "INSERT INTO HISPEED_SPEED_PROMOTION  VALUES (" + speedID + ", " + id + ", " + priceF + ", null, 'Y', '" + download + "', '" + modem + "', " +
+                             "'" + upload_K + "', '" + Tdocsis + "')";
+
+                if (isExport)
+                {
+                    if (Write_SQL.Contains(cmdTxt) == false)
+                    {
+                        if (cmdTxt != "")
+                        {
+                            Write_SQL += cmdTxt + "\r\n" + "\r\n";
+                        }
+                    }
+                }
+                else
+                {
+                    Write_SQL += cmdTxt + "\r\n" + "\r\n";
+
+                    using (transaction = CONNECTION.BeginTransaction())
+                    {
+                        try
+                        {
+                            command = new OracleCommand(cmdTxt, CONNECTION, transaction);
+                            command.ExecuteNonQuery();
+
+                            transaction.Commit();
+                        }
+                        catch (Exception ex)
+                        {
+                            transaction.Rollback();
+
+                            systemLog += DateTime.Now.ToString() + "  Cannot update the data of P_ID : " + id + " into table HISPEED_SPEED_PROMOTION" + "Detail : " +
+                                            ex.Message.ToString() + "\r\n";
+                        }
+
+                    }
+                }
+            }
+
+            reader.Close();
+
+        }
+
+        private void NewHispeedPromotion(int id, string mktCode, string orderType, string subProfile, double price, string channel, string modemType,
+            string docsis, string entry, string install, string start, string end, string download, string upload, string uomUp)
+        {
+            OracleCommand command;
+            OracleDataReader reader = null;
+            string pName = "";
+            string[] code = mktCode.Split('-');
+            string pCode = code[0].Trim();
+            int speedID = Convert.ToInt32(code[1].Trim());
+
+            //set month contract
+            string month = entry.Substring(12);
+            month = Regex.Replace(month, "[^0-9]", "");
+            month = month + "M";
+
+            //set contract
+            entry = entry.Substring(0, 10);
+            install = install.Substring(0, 10);
+
+            string prefix;
+            if (mktCode.StartsWith("TRL"))
+            {
+                prefix = mktCode.Substring(0, 5);
+            }
+            else
+            {
+                prefix = mktCode.Substring(0, 2);
+            }
+
+            //borrow modem
+            string modem;
+            if (orderType == "New")
+            {
+                modem = "BM";
+            }
+            else
+            {
+                modem = "BM,NM";
+            }
+
+            //Get prod_type
+            string queryProd = "SELECT * FROM TRUE9_BPT_HISPEED_PRODTYPE WHERE MKT = '" + prefix + "' AND ORDER_TYPE = '" + orderType + "'";
+
+            command = new OracleCommand(queryProd, CONNECTION71);
+            reader = command.ExecuteReader();
+            reader.Read();
+            string prod = reader["PROD_TYPE"].ToString();
+            reader.Close();
+
+       //get pName
+
+            //insert data into hispeed promotion
+            OracleCommand cmd = CONNECTION.CreateCommand();
+            OracleTransaction transaction = null;
+
+            string cmdTxt = "INSERT INTO HISPEED_PROMOTION VALUES (" + id + ", '" + pCode + "', '" + pCode + "', '" + pName + "', '" + pName + "', '" + orderType + "', 'Active','','',0,0,'Y','Y','',0,'N','0'," +
+                           "'Y','Y','N','" + prod + "', sysdate, sysdate, '" + month + "',0,'TI', TO_DATE('" + start + "','dd/mm/yyyy'), TO_DATE('" + end + "','dd/mm/yyyy'), 'M', '" + pCode + "','N','N','Y', '" +
+                           entry + "', '" + install + "','" + modem + "','N','" + subProfile + "','')";
+
+            if (isExport)
+            {
+                if (TempExport.ContainsKey(mktCode + "," + orderType))
+                {
+                    foreach (KeyValuePair<string, int> keyValuePair in TempExport)
+                    {
+                        string key = keyValuePair.Key;
+
+                        if (key == (mktCode + "," + orderType))
+                        {
+                            id = keyValuePair.Value;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    Write_SQL += cmdTxt + "\r\n";
+                }
+            }
+            else
+            {
+                Write_SQL += cmdTxt + "\r\n";
+
+                using (transaction = CONNECTION.BeginTransaction())
+                {
+                    try
+                    {
+                        cmd = new OracleCommand(cmdTxt, CONNECTION, transaction);
+                        cmd.ExecuteNonQuery();
+
+                        transaction.Commit();
+                    }
+                    catch (Exception ex)
+                    {
+                        transaction.Rollback();
+
+                        systemLog += DateTime.Now.ToString() + "  Cannot insert the data of " + id + " : " + mktCode + ", order " + 
+                            orderType + " into table HISPEED_PROMOTION" + " Detail : " + ex.Message.ToString() + "\r\n";
+                    }
+                }
+            }
+
+            //Set data into table hispeed_channel_promotion
+            Channel_Promotion(id, channel, start, end);
+
+            //Set data into table hispeed_speed_promotion
+            HispeedSpeedPromotion(id, price, download, upload, uomUp, speedID, modemType, docsis);
+        }
+
+        /// <summary>
+        /// Check already speed in table hispeed_speed
+        /// </summary>
+        /// <returns></returns>
+        private int GetSpeedID(string download, string uom)
+        {
+            int speedID = 0;
+            try
+            {
+                //Create an OracleCommand object using the connection object
+                OracleCommand command = CONNECTION.CreateCommand();
+                OracleTransaction transaction = null;
+
+                string downloadK = ConvertSpeed(download, uom);
+                int speedF = Convert.ToInt32(Regex.Replace(download, "[^0-9]", ""));
+                string speed_detail = downloadK + "K";
+
+                string query = "SELECT * FROM HISPEED_SPEED WHERE SPEED_DESC = '" + downloadK + "'";
+
+                OracleCommand cmd = new OracleCommand(query, CONNECTION);
+                OracleDataReader reader = cmd.ExecuteReader();
+                reader.Read();
+
+                if (reader.HasRows)
+                {
+                    speedID = Convert.ToInt32(reader["SPEED_ID"].ToString());
+                }
+                else
+                {
+                    using (transaction = CONNECTION.BeginTransaction())
+                    {
+                        try
+                        {
+                            string cmdTxt = "INSERT INTO HISPEED_SPEED VALUES (" + speedF + ",'" + downloadK + "','" +
+                                speed_detail + "','" + downloadK + "')";
+
+                            command = new OracleCommand(cmdTxt, CONNECTION, transaction);
+                            command.ExecuteNonQuery();
+
+                            transaction.Commit();
+                        }
+                        catch (Exception ex)
+                        {
+                            transaction.Rollback();
+                            throw new Exception();
+                        }
+                    }
+                    speedID = speedF;
+                }
+
+                reader.Close();
+            }
+            catch (Exception ex)
+            {
+                systemLog += DateTime.Now.ToString() + "  Cannot add new speed " + speedID + " into table HISPEED_SPEED"+ " Detail : " +
+                                            ex.Message.ToString() + "\r\n";
+            }
+
+            return speedID;
+        }
+
+        /// <summary>
+        /// update complete flag in table reserve
+        /// </summary>
+        private void UpdateCompleteFlag(int min, int max)
+        {
+            try
+            {
+                if (CONNECTION71.State != ConnectionState.Open)
+                {
+                    try
+                    {
+                        CONNECTION71.Open();
+                    }
+                    catch
+                    {
+                        CONNECTION71.ConnectionString = connString71;
+                        CONNECTION71.Open();
+                    }
+                }
+
+                //Create an OracleCommand object using the connection object
+                OracleCommand command = CONNECTION71.CreateCommand();
+                OracleTransaction transaction;
+
+                // Start a local transaction
+                transaction = CONNECTION71.BeginTransaction(IsolationLevel.ReadCommitted);
+                // Assign transaction object for a pending local transaction
+                command.Transaction = transaction;
+
+                try
+                {
+                    command.CommandText = "UPDATE TRUE9_BPT_RESERVE_ID SET COMPLETE_FLAG = 'Y', MAX_ID = '" + max + "' " +
+                       "WHERE TYPE_NAME = 'Hispeed' AND UR_NO = '" + UR_NO + "' AND MIN_ID = '" + min + "'";
+
+                    command.CommandType = CommandType.Text;
+
+                    command.ExecuteNonQuery();
+                    transaction.Commit();
+                }
+                catch (Exception e)
+                {
+                    transaction.Rollback();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Cannot update COMPLETE_FLAG to 'Y' in TRUE9_BPT_RESERVE_ID." + "\r\n" + "Please manual update flag in database" + "\r\n" + ex);
+
+                //string msg = "Cannot update COMPLETE_FLAG to 'Y' in TRUE9_BPT_RESERVE_ID." + "\r\n" + "Please manual update flag in database" + "\r\n" + ex;
+                //Color color = Color.FromArgb(204, 28, 68);
+
+                //string FileName = string.Format("{0}Resources\\Error.png",
+                //    Path.GetFullPath(Path.Combine(RunningPath, @"..\")));
+
+                //dialogMessage = new DialogMessage(msg, color, FileName);
+                //dialogMessage.ShowDialog();
+
+
+                Application.Exit();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="speed"></param>
+        /// <param name="uom"></param>
+        /// <returns></returns>
+        private string ConvertSpeed(string speed, string uom)
+        {
+            string convSpeed = Regex.Replace(speed, "[^0-9]", "");
+
+            if (uom == "G")
+            {
+                convSpeed = (Convert.ToInt32(convSpeed) * 1024000).ToString();
+            }
+            else if (uom == "M")
+            {
+                convSpeed = (Convert.ToInt32(convSpeed) * 1024).ToString();
+            }
+
+            return convSpeed;
+        }
+    }
+
+}

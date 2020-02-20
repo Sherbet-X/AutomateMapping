@@ -1,0 +1,1174 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.OleDb;
+using System.Data.OracleClient;
+using System.Drawing;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace MappingDiscount
+{
+    public partial class ViewDCData : Form
+    {
+        #region "Private field"
+        private OracleConnection CONNECTION;
+        private OracleConnection CONNECTION71;
+        private bool FLAG_NEW;
+        private bool FLAG_EXISTING;
+        private string FILENAME;
+        private string USER;
+        private string UR_NO;
+        private CoverDiscount coverDiscount;
+
+        private string dcCode;
+        private string month;
+        private string channel;
+        private string mkt;
+        private string orderType;
+        private string prod;
+        private string speed;
+        private string prov;
+        private string effective;
+        private string expire;
+        private string dcGroupID;
+        private ViewResult viewResult;
+        private DataTable dataTableNew;
+        #endregion
+
+        public ViewDCData(CoverDiscount form, OracleConnection con, bool newDC, bool existingDC,
+            string filename, string user, string UR)
+        {
+            InitializeComponent();
+
+            //Get private variable
+            coverDiscount = form;
+            CONNECTION = con;
+            FLAG_NEW = newDC;
+            FLAG_EXISTING = existingDC;
+            FILENAME = filename;
+            USER = user;
+            UR_NO = UR;
+        }
+
+        /// <summary>
+        /// When clicked Next button for generate new discount
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnOK_Click(object sender, System.EventArgs e)
+        {
+            if (btnOK.Text == "Next")
+            {
+                btnOK.Text = "Execute";
+                labelPg.Text = "Page2/2";
+                NewDiscount();
+
+                ViewExistingDC();
+            }
+            else if (btnOK.Text == "Execute")
+            {
+                ExistingDC(dataTableNew);
+            }
+            else if (btnOK.Text == "OK")
+            {
+                if (FLAG_NEW == true && FLAG_EXISTING == false)
+                {
+                    NewDiscount();
+                }
+                else if (FLAG_NEW == false && FLAG_EXISTING == true)
+                {
+                    ExistingDC(null);
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// When clicked close this page
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void label1_Click(object sender, EventArgs e)
+        {
+            this.Close();
+
+            coverDiscount.Activate();
+            coverDiscount.Show();
+
+        }
+
+        private void ViewDCData_SizeChanged(object sender, EventArgs e)
+        {
+            int w = this.Size.Width;
+            int h = this.Size.Height;
+
+            labelPg.Location = new Point(w - 100, 122);
+            btnOK.Location = new Point(w - 130, h - 100);
+
+            dataGridView1.Size = new Size(w, h - 280);
+        }
+
+        private void ViewDCData_Load(object sender, EventArgs e)
+        {
+            coverDiscount.Hide();
+            toolStripStatusLabel1.Text = FILENAME;
+            this.dataGridView1.AllowUserToAddRows = false;
+
+            if (FLAG_NEW == true && FLAG_EXISTING == false)
+            {
+                labelPg.Text = "Page1/1";
+                ViewNewDC();
+            }
+            else if (FLAG_NEW == false && FLAG_EXISTING == true)
+            {
+                labelPg.Text = "Page1/1";
+                ViewExistingDC();
+            }
+            else
+            {
+                labelPg.Text = "Page1/2";
+                btnOK.Text = "Next";
+                ViewNewDC();
+            }
+        }
+
+        private void ViewExistingDC()
+        {
+            labelTitle.Text = "Existing Criteria Discount";
+
+            try
+            {
+                //connect excel
+                if (System.IO.File.Exists(FILENAME))
+                {
+                    string connString = string.Format(@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Extended Properties=""Excel 8.0;HDR=YES;IMEX=1;""", FILENAME);
+                    string query = string.Format("select * from [Update Date Discount (SMART UI)$]", connString);
+                    OleDbDataAdapter dtAdapter = new OleDbDataAdapter(query, connString);
+                    DataTable dt = new DataTable();
+                    dtAdapter.Fill(dt);
+                    //Remove first row
+                    dt.Rows.RemoveAt(1);
+                    dataGridView1.DataSource = dt.DefaultView;
+
+                    //Hide unused column
+                    dataGridView1.Columns[3].Visible = false;
+                    dataGridView1.Columns[4].Visible = false;
+                    dataGridView1.Columns[7].Visible = false;
+                    dataGridView1.Columns[11].Visible = false;
+                    dataGridView1.Columns[12].Visible = false;
+                    dataGridView1.Columns[13].Visible = false;
+                    dataGridView1.Columns[15].Visible = false;
+                    dataGridView1.Columns[16].Visible = false;
+
+                    //Set header
+                    dataGridView1.Columns[0].HeaderText = "DC_ID";
+                    dataGridView1.Columns[1].HeaderText = "DISCOUNT_CODE";
+                    dataGridView1.Columns[2].HeaderText = "DISCOUNT_DESCRIPTION";
+                    dataGridView1.Columns[5].HeaderText = "START_DATE";
+                    dataGridView1.Columns[6].HeaderText = "END_DATE";
+                    dataGridView1.Columns[8].HeaderText = "SALE_CHANNEL";
+                    dataGridView1.Columns[9].HeaderText = "SPEED";
+                    dataGridView1.Columns[10].HeaderText = "MKT_CODE";
+                    dataGridView1.Columns[14].HeaderText = "GROUP_ID";
+
+                    dataGridView1.Columns.Add("Start_DB", "START_DB");
+                    dataGridView1.Columns.Add("End_DB", "END_DB");
+
+                    dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font(DefaultFont, FontStyle.Bold);
+                    dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(189, 10, 59);
+                    dataGridView1.EnableHeadersVisualStyles = false;
+
+                    //remove first row because header was merge
+                    dataGridView1.Rows.RemoveAt(0);
+
+                    for (int i = 0; i < dataGridView1.RowCount; i++)
+                    {
+                        double d;
+                        string start = dataGridView1.Rows[i].Cells[5].Value.ToString();
+                        string end = dataGridView1.Rows[i].Cells[6].Value.ToString();
+
+                        if (double.TryParse(start, out d))
+                        {
+                            DateTime date = DateTime.FromOADate(d);
+                            start = date.ToString("dd/MM/yyyy");
+                            dataGridView1.Rows[i].Cells[5].Value = start;
+                        }
+
+                        if (double.TryParse(end, out d))
+                        {
+                            DateTime date = DateTime.FromOADate(d);
+                            end = date.ToString("dd/MM/yyyy");
+                            dataGridView1.Rows[i].Cells[6].Value = end;
+                        }
+
+                        //remove empty row  
+                        if (dataGridView1.Rows[i].Cells[1].Value.ToString() == "")
+                        {
+                            dataGridView1.Rows.RemoveAt(i);
+                            i--;
+                        }
+                    }
+
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Cannot read data from file input." + "\r\n" +
+                    "Please check format file and field in Sheet Discount New Sale(SMART UI)");
+            }
+        }
+
+        #region "Existing criteria"
+        private void ExistingDC(DataTable table)
+        {
+            //TableResult New DC
+            DataTable dataTableNew = table;
+            string messageDate = "";
+            string lstid = "";
+            string lstDate = "";
+            DataTable dataTable = new DataTable();
+
+            try
+            {
+                //Check Date
+                for (int i = 0; i < dataGridView1.RowCount; i++)
+                {
+                    string dc_id = dataGridView1.Rows[i].Cells[0].Value.ToString();
+                    string start = dataGridView1.Rows[i].Cells[5].Value.ToString();
+                    string end = dataGridView1.Rows[i].Cells[6].Value.ToString();
+
+                    lstid += "'" + dc_id + "'" + ",";
+
+                    //id-start_end
+                    lstDate += dc_id + "-" + start + "_" + end + ",";
+
+                    //Get start date from DB
+                    string query = "SELECT * FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_ID = '" + dc_id + "'";
+
+                    OracleCommand cmd = new OracleCommand(query, CONNECTION);
+                    OracleDataReader reader = cmd.ExecuteReader();
+                    reader.Read();
+
+                    DateTime StartDB = Convert.ToDateTime(reader["DC_START_DT"]);
+                    DateTime EndDB = Convert.ToDateTime(reader["DC_END_DT"]);
+
+                    //Check Date
+                    DateTime dDateStart = new DateTime();
+                    DateTime dDateEnd = new DateTime();
+
+                    //Start
+                    if (start != "-" || start != "null")
+                    {
+                        if (DateTime.TryParse(start, out dDateStart))
+                        {
+                            start = string.Format("{0:dd/MM/yyyy}", dDateStart);
+
+                            if (dDateStart < DateTime.Today || StartDB < DateTime.Today)
+                            {
+                                messageDate += "Invalid Start Date (Start Date < Sysdate) " + ": DC_ID --> " + dc_id + "\r\n";
+                            }
+                        }
+                        else
+                        {
+                            messageDate += "Please check format start date " + ": DC_ID --> " + dc_id + "\r\n";
+                        }
+                    }
+                    else
+                    {
+                        start = "";
+                    }
+
+                    //End
+                    if (end != "-" || end != "null")
+                    {
+                        if (DateTime.TryParse(end, out dDateEnd))
+                        {
+                            end = string.Format("{0:dd/MM/yyyy}", dDateEnd);
+
+                            if (dDateEnd < dDateStart || dDateEnd < DateTime.Today)
+                            {
+                                messageDate += "Invalid End Date " + ": DC_ID --> " + dc_id + "\r\n";
+                            }
+                        }
+                        else
+                        {
+                            messageDate += "Please check format End date " + ": DC_ID --> " + dc_id + "\r\n";
+                        }
+                    }
+                    else
+                    {
+                        end = "";
+                    }
+
+                }
+
+                if (messageDate != "")
+                {
+                    MessageBox.Show(messageDate);
+                }
+                else
+                {
+                    //cut ',' from last str
+                    lstid = lstid.Substring(0, lstid.Length - 1);
+                    lstDate = lstDate.Substring(0, lstDate.Length - 1);
+
+                    string[] spDate = lstDate.Split(',');
+
+                    string query = "SELECT * FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_ID in (" + lstid + ")";
+
+                    OracleDataAdapter adapter = new OracleDataAdapter(query, CONNECTION);
+                    adapter.Fill(dataTable);
+
+                    foreach (string value in spDate)
+                    {   //id-start_end
+                        string[] splitID = value.Split('-');
+                        string dc_id = splitID[0];
+                        string date = splitID[1];
+                        string[] splitDt = date.Split('_');
+                        string start = splitDt[0];
+                        string end = splitDt[1];
+
+                        for (int i = 0; i < dataTable.Rows.Count; i++)
+                        {
+                            string id = dataTable.Rows[i][0].ToString();
+
+                            if (dc_id == id)
+                            {
+                                dataTable.Rows[i][5] = end;
+                                dataTable.Rows[i][4] = start;
+                            }
+                        }
+                    }
+
+                    DataTable[] lstTable = new DataTable[2];
+
+                    //Both
+                    if (FLAG_NEW == true && FLAG_EXISTING == true)
+                    {
+                        lstTable[0] = dataTableNew;
+                        lstTable[1] = dataTable;
+
+                        viewResult = new ViewResult(lstTable, CONNECTION, CONNECTION71, UR_NO, lstid, lstDate, USER);
+                        viewResult.Show();
+                    }
+                    else
+                    {
+                        lstTable[1] = dataTable;
+                        viewResult = new ViewResult(lstTable, CONNECTION, null, UR_NO, lstid, lstDate, USER);
+                        viewResult.ShowDialog();
+                    }
+
+                }
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Can't read existing criteria data from database" + "\r\n" + e.Message, "Error"
+                    , MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        #endregion
+
+        private void ViewNewDC()
+        {
+            labelTitle.Text = "New Criteria Discount";
+
+            try
+            {
+                //connect excel
+                if (System.IO.File.Exists(FILENAME))
+                {
+                    string connString = string.Format(@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Extended Properties=""Excel 8.0;HDR=YES;IMEX=1;""", FILENAME);
+                    string query = string.Format("select * from [Discount New Sale(SMART UI)$]", connString);
+                    OleDbDataAdapter dtAdapter = new OleDbDataAdapter(query, connString);
+                    DataTable dt = new DataTable();
+                    dtAdapter.Fill(dt);
+                    //Remove first row
+                    dt.Rows.RemoveAt(1);
+
+                    //dataGridView1.DataSource = dataSet.Tables[0];
+                    dataGridView1.DataSource = dt.DefaultView;
+
+                    //Set header
+                    dataGridView1.Columns[0].HeaderText = "Vcare Discount Code";
+                    dataGridView1.Columns[1].HeaderText = "Criteria (Mth)";
+                    dataGridView1.Columns[2].HeaderText = "Channel";
+                    dataGridView1.Columns[3].HeaderText = "MKT Code";
+                    dataGridView1.Columns[4].HeaderText = "Order type";
+                    dataGridView1.Columns[5].HeaderText = "Product";
+                    dataGridView1.Columns[6].HeaderText = "Speed";
+                    dataGridView1.Columns[7].HeaderText = "Province";
+                    dataGridView1.Columns[8].HeaderText = "Effective Start Date";
+                    dataGridView1.Columns[9].HeaderText = "End Date";
+
+                    dataGridView1.ColumnHeadersDefaultCellStyle.Font = new Font(DataGridView.DefaultFont, FontStyle.Bold);
+                    dataGridView1.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                    dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = Color.DarkSalmon;
+                    dataGridView1.EnableHeadersVisualStyles = false;
+
+                    //remove first row because header was merge
+                    dataGridView1.Rows.RemoveAt(0);
+
+                    for (int i = 1; i < dataGridView1.RowCount; i++)
+                    {
+                        double d;
+                        string start = dataGridView1.Rows[i].Cells[8].Value.ToString();
+                        string end = dataGridView1.Rows[i].Cells[9].Value.ToString();
+
+                        if (double.TryParse(start, out d))
+                        {
+                            DateTime date = DateTime.FromOADate(d);
+                            start = date.ToString("dd/MM/yyyy");
+                            dataGridView1.Rows[i].Cells[8].Value = start;
+                        }
+
+                        if (double.TryParse(end, out d))
+                        {
+                            DateTime date = DateTime.FromOADate(d);
+                            end = date.ToString("dd/MM/yyyy");
+                            dataGridView1.Rows[i].Cells[9].Value = end;
+                        }
+                        //remove emtry row
+                        if (dataGridView1.Rows[i].Cells[1].Value.ToString() == "")
+                        {
+                            dataGridView1.Rows.RemoveAt(i);
+                            i--;
+                        }
+                    }
+
+                    if (dataGridView1.Rows[dataGridView1.RowCount - 1].Cells[0].Value.ToString() == "")
+                    {
+                        dataGridView1.Rows.RemoveAt(dataGridView1.RowCount - 1);
+                    }
+
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Cannot read data from file input." + "\r\n" +
+                    "Please check format file and field in Sheet Discount New Sale(SMART UI)" + "\r\n" + ex.Message);
+            }
+        }
+
+        private void NewDiscount()
+        {
+            CONNECTION71 = new OracleConnection();
+            string connString = "Data Source=(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.193.20)(PORT = 1560))" +
+                   "(CONNECT_DATA = (SID = TEST03)));User Id= TRUREF71; Password= TRUREF71;";
+
+            CONNECTION71.ConnectionString = connString;
+
+            try
+            {
+                CONNECTION71.Open();
+
+                //CONNECTION71 = CONNECTION;
+
+                //Check complete flag in TRUREF71
+
+                string query = "SELECT * FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Disc' AND COMPLETE_FLAG = 'N'";
+
+                OracleCommand cmd = new OracleCommand(query, CONNECTION71);
+                OracleDataReader reader = cmd.ExecuteReader();
+                reader.Read();
+                if (reader.HasRows)
+                {
+                    string user = reader["USERNAME"].ToString();
+
+                    if (user == USER)
+                    {
+                        string qryDel = "DELETE FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Disc' AND COMPLETE_FLAG = 'N'";
+                        OracleCommand command = new OracleCommand(qryDel, CONNECTION71);
+
+                        command.ExecuteNonQuery();
+                    }
+                    else
+                    {
+                        MessageBox.Show("UserName : " + user + " is in the process of inserting.");
+
+                        Application.Exit();
+                    }
+                }
+                else
+                {
+                    string queryMax = "SELECT MAX(DC_ID) FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_ID LIKE 'DC00%'";
+
+                    OracleCommand cmdMax = new OracleCommand(queryMax, CONNECTION);
+                    OracleDataReader readerMax = cmdMax.ExecuteReader();
+                    readerMax.Read();
+
+                    string id = Convert.ToString(readerMax[0]).Substring(2);
+                    int dcID = Convert.ToInt32(id) + 1;
+                    string min_id = "DC" + string.Format("{0:00000000}", dcID);
+
+                    readerMax.Close();
+
+                    //Insert maxID for reserve
+                    OracleCommand command = CONNECTION71.CreateCommand();
+                    OracleTransaction transaction;
+
+                    transaction = CONNECTION71.BeginTransaction(IsolationLevel.ReadCommitted);
+                    command.Transaction = transaction;
+
+                    try
+                    {
+                        command.CommandText = "INSERT INTO TRUE9_BPT_RESERVE_ID VALUES ('Disc','N','" + min_id + "','null','" +
+                            UR_NO + "','" + USER + "',sysdate)";
+
+                        command.CommandType = CommandType.Text;
+
+                        command.ExecuteNonQuery();
+                        transaction.Commit();
+
+                        ExecuteNewDC(dcID);
+
+                        Console.WriteLine("One record is inserted");
+
+                    }
+                    catch (Exception ex)
+                    {
+                        transaction.Rollback();
+                        //Console.WriteLine("No record was inserted into the database table.");
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed..." + "\r\n" + ex.Message);
+
+                this.Close();
+                coverDiscount.Activate();
+                coverDiscount.Show();
+            }
+        }
+
+        private void ExecuteNewDC(int minID)
+        {
+            string strMinID = "DC" + string.Format("{0:00000000}", minID);
+
+            //create table view data from table mapping
+            DataTable dtTableView = new DataTable();
+            dtTableView.Clear();
+            dtTableView.Columns.Add("DC_ID");
+            dtTableView.Columns.Add("DC_TYPE");
+            dtTableView.Columns.Add("DC_VALUE");
+            dtTableView.Columns.Add("DC_GROUPID");
+            dtTableView.Columns.Add("DC_START_DT");
+            dtTableView.Columns.Add("DC_END_DT");
+            dtTableView.Columns.Add("DC_ACTIVE_FLAG");
+
+            Dictionary<string, Dictionary<string, string>> resultCheckData = ValidateData();
+
+            Dictionary<string, string> dicGroupID = null;
+            string message = "";
+
+            if (resultCheckData.ContainsKey("GroupID"))
+            {
+                //Get GroupID that was checked
+                dicGroupID = resultCheckData["GroupID"];
+
+                if (dicGroupID.ContainsKey("Not Found"))
+                {
+                    message += "Please insert GroupID into database before." + "\r\n" + "Invalid GroupID.." + dicGroupID["Not Found"] + "\r\n";
+                    message += "********************************************************************" + "\r\n";
+                }
+            }
+
+            if (resultCheckData.ContainsKey("Speed"))
+            {
+                //Get speed that was checked
+                Dictionary<string, string> dicSpeed = resultCheckData["Speed"];
+
+                if (dicSpeed.ContainsKey("Doesn't Match"))
+                {
+                    message += dicSpeed["Doesn't Match"] + "\r\n";
+                    message += "********************************************************************" + "\r\n";
+                }
+            }
+
+            if (resultCheckData.ContainsKey("Province"))
+            {
+                //Get province that was checked
+                Dictionary<string, string> dicProvince = resultCheckData["Province"];
+
+                if (dicProvince.ContainsKey("Not Found"))
+                {
+                    message += dicProvince["Not Found"];
+                    message += "********************************************************************" + "\r\n";
+                }
+            }
+
+            if (resultCheckData.ContainsKey("Effective"))
+            {
+                //Get Effective that was checked
+                Dictionary<string, string> dicEffective = resultCheckData["Effective"];
+
+                if (dicEffective.ContainsKey("Wrong Format"))
+                {
+                    message += dicEffective["Wrong Format"];
+                    message += "********************************************************************" + "\r\n";
+                }
+            }
+
+            if (resultCheckData.ContainsKey("Expire"))
+            {
+                //Get Expire that was checked
+                Dictionary<string, string> dicExpire = resultCheckData["Expire"];
+
+                if (dicExpire.ContainsKey("Wrong Format"))
+                {
+                    message += dicExpire["Wrong Format"];
+                    message += "********************************************************************" + "\r\n";
+                }
+            }
+
+            if (message != "")
+            {
+                MessageBox.Show(message);
+            }
+            else
+            {
+                for (int i = 0; i < dataGridView1.RowCount; i++)
+                {
+                    bool hasID = false;
+
+                    dcCode = dataGridView1.Rows[i].Cells[0].Value.ToString();
+                    month = dataGridView1.Rows[i].Cells[1].Value.ToString().Trim();
+                    channel = dataGridView1.Rows[i].Cells[2].Value.ToString();
+                    string[] lstMkt = dataGridView1.Rows[i].Cells[3].Value.ToString().Split('-');
+                    mkt = lstMkt[0];
+                    orderType = dataGridView1.Rows[i].Cells[4].Value.ToString();
+                    string getSpeed = dataGridView1.Rows[i].Cells[6].Value.ToString();
+                    effective = dataGridView1.Rows[i].Cells[8].Value.ToString();
+                    expire = dataGridView1.Rows[i].Cells[9].Value.ToString();
+
+                    List<Dictionary<string, string>> lstRangeM = FormatGroupMonth(month);
+                    Dictionary<string, string> dicresult = new Dictionary<string, string>();
+                    string[] lstChannel = null;
+                    string[] lstorder = null;
+
+                    string upMkt = mkt.ToUpper().Trim();
+                    if (upMkt == "ALL")
+                    {
+                        mkt = "ALL";
+                    }
+
+                    //Cut each Order_Type
+                    if (orderType.Contains(","))
+                    {
+                        lstorder = orderType.Split(',');
+                    }
+                    else
+                    {
+                        lstorder = new string[] { orderType };
+
+                        string upper = lstorder[0].ToUpper().Trim();
+                        if (upper == "ALL")
+                        {
+                            lstorder[0] = "ALL";
+                        }
+                    }
+
+                    //Cut each Channel
+                    if (channel.Contains(","))
+                    {
+                        lstChannel = channel.Split(',');
+                    }
+                    else
+                    {
+                        lstChannel = new string[] { channel };
+
+                        string upper = lstChannel[0].ToUpper().Trim();
+                        if (upper == "ALL" || upper == "DEFAULT")
+                        {
+                            lstChannel[0] = "ALL";
+                        }
+                    }
+
+                    //Speed
+                    speed = FormatSpeed(getSpeed);
+
+                    //Change format Date
+                    DateTime dDate;
+                    if (DateTime.TryParse(effective, out dDate))
+                    {
+                        effective = string.Format("{0:dd/MM/yyyy}", dDate);
+                    }
+
+                    if (DateTime.TryParse(expire, out dDate))
+                    {
+                        expire = string.Format("{0:dd/MM/yyyy}", dDate);
+                    }
+
+                    for (int num = 0; num < lstRangeM.Count; num++)
+                    {
+                        dicresult = lstRangeM[num];
+                        string minMonth = dicresult["min" + num];
+                        string maxMonth = dicresult["max" + num];
+                        string GroupName = dcCode + minMonth + maxMonth;
+                        dcGroupID = dicGroupID[GroupName];
+
+                        for (int j = 0; j < lstChannel.Length; j++)
+                        {
+                            for (int k = 0; k < lstorder.Length; k++)
+                            {
+                                string strQuery = "SELECT * FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_ID IN (SELECT DC_ID FROM DISCOUNT_CRITERIA_MAPPING " +
+                                   "WHERE DC_VALUE = '" + mkt + "' AND DC_GROUPID = '" + dcGroupID + "' AND DC_ID IN (SELECT DC_ID FROM DISCOUNT_CRITERIA_MAPPING " +
+                                   "WHERE DC_VALUE = '" + channel + "') AND DC_ID IN (SELECT DC_ID FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_VALUE = '" + speed +
+                                   "') AND DC_ID IN (SELECT DC_ID FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_VALUE = '" + orderType + "'))";
+                                OracleCommand cmd = new OracleCommand(strQuery, CONNECTION);
+                                OracleDataReader reader = cmd.ExecuteReader();
+                                reader.Read();
+                                if (reader.HasRows)
+                                {
+                                    hasID = true;
+                                }
+                                else
+                                {
+                                    hasID = false;
+
+                                    if (lstChannel[0] == "ALL")
+                                    {
+                                        UPDATECHANNEL(mkt, dcGroupID, speed, effective);
+                                    }
+                                }
+
+                                for (int m = 1; m <= 6; m++)
+                                {
+                                    object[] obj = new object[7];
+
+                                    if (hasID == false)
+                                    {
+                                        obj[0] = "DC" + string.Format("{0:00000000}", minID);
+                                    }
+                                    else
+                                    {
+                                        obj[0] = "";
+                                    }
+
+                                    obj[3] = dcGroupID;
+
+                                    if (effective == "-")
+                                    {
+                                        obj[4] = "null";
+                                    }
+                                    else
+                                    {
+                                        obj[4] = effective;
+                                    }
+
+                                    if (expire == "-")
+                                    {
+                                        obj[5] = "null";
+                                    }
+                                    else
+                                    {
+                                        obj[5] = expire;
+                                    }
+
+                                    obj[6] = "Y";
+
+                                    switch (m)
+                                    {
+                                        case 1:
+                                            obj[1] = "MARKETING_CODE";
+                                            obj[2] = mkt;
+                                            break;
+                                        case 2:
+                                            obj[1] = "ORDER_TYPE";
+                                            obj[2] = lstorder[k];
+                                            break;
+                                        case 3:
+                                            obj[1] = "PRODUCT";
+                                            obj[2] = "ALL";
+                                            break;
+                                        case 4:
+                                            obj[1] = "PROVINCE";
+                                            obj[2] = "ALL";
+                                            break;
+                                        case 5:
+                                            obj[1] = "SALE_CHANNEL";
+                                            obj[2] = lstChannel[j];
+                                            break;
+                                        case 6:
+                                            obj[1] = "SPEED";
+                                            obj[2] = speed;
+                                            break;
+                                    }
+
+                                    dtTableView.Rows.Add(obj);
+                                }
+
+                                if (hasID == false)
+                                {
+                                    minID += 1;
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+                minID = minID - 1;
+                string max_id = "DC" + string.Format("{0:00000000}", minID);
+
+                if (FLAG_NEW == true && FLAG_EXISTING == true)
+                {
+                    dataTableNew = dtTableView;
+                }
+                else
+                {
+                    DataTable[] lstTable = new DataTable[2];
+                    lstTable[0] = dtTableView;
+
+                    viewResult = new ViewResult(lstTable, CONNECTION, CONNECTION71, UR_NO, strMinID, max_id, USER);
+                    viewResult.ShowDialog();
+                }
+            }
+
+        }
+
+        private List<Dictionary<string, string>> FormatGroupMonth(string month)
+        {
+            List<Dictionary<string, string>> lstRangeM = new List<Dictionary<string, string>>();
+            Dictionary<string, string> dic;
+            if (month.Contains(","))
+            {
+                string[] lstMonth = month.Split(',');
+
+                for (int j = 0; j < lstMonth.Length; j++)
+                {
+                    dic = new Dictionary<string, string>();
+
+                    if (lstMonth[j].Contains("-"))
+                    {
+                        string[] lstRange = lstMonth[j].Split('-');
+                        dic.Add("min" + j, lstRange[0]);
+                        dic.Add("max" + j, lstRange[1]);
+                        lstRangeM.Add(dic);
+                    }
+                    else
+                    {
+                        dic.Add("min" + j, lstMonth[j]);
+                        dic.Add("max" + j, lstMonth[j]);
+                        lstRangeM.Add(dic);
+                    }
+                }
+            }
+            else
+            {
+                dic = new Dictionary<string, string>();
+                if (month.Contains("-"))
+                {
+                    string[] lstRange = month.Split('-');
+                    dic.Add("min0", lstRange[0]);
+                    dic.Add("max0", lstRange[1]);
+                }
+                else
+                {
+                    dic.Add("min0", month);
+                    dic.Add("max0", month);
+                }
+
+                lstRangeM.Add(dic);
+            }
+
+            return lstRangeM;
+        }
+
+        private Dictionary<string, Dictionary<string, string>> ValidateData()
+        {
+            Dictionary<string, Dictionary<string, string>> dicResult = new Dictionary<string, Dictionary<string, string>>();
+            string result = "";
+            Dictionary<string, string> dicGroupID = new Dictionary<string, string>();
+            string dgGroup = null;
+            string suffixMkt = "";
+
+            for (int i = 0; i < dataGridView1.RowCount; i++)
+            {
+                string dcCode = dataGridView1.Rows[i].Cells[0].Value.ToString();
+                string month = dataGridView1.Rows[i].Cells[1].Value.ToString().Trim();
+                string province = dataGridView1.Rows[i].Cells[7].Value.ToString().ToUpper();
+                string mkt = dataGridView1.Rows[i].Cells[3].Value.ToString();
+                if (mkt.Contains("-"))
+                {
+                    string[] lstmkt = (dataGridView1.Rows[i].Cells[3].Value.ToString()).Split('-');
+                    suffixMkt = lstmkt[1];
+                }
+                else
+                {
+                    suffixMkt = "ALL";
+                }
+                string speed = dataGridView1.Rows[i].Cells[6].Value.ToString();
+                string effective = dataGridView1.Rows[i].Cells[8].Value.ToString();
+                string expire = dataGridView1.Rows[i].Cells[9].Value.ToString();
+
+                //SplitSpeed
+                if (speed.Contains("M"))
+                {
+                    speed = speed.Replace("M", "");
+                }
+                else if (speed.Contains("G"))
+                {
+                    speed = speed.Replace("G", "");
+                }
+                else if (speed.Contains("K"))
+                {
+                    speed = speed.Replace("K", "");
+                }
+
+                //Check Province
+                if ((province != "ALL") && (province != "DEFAULT"))
+                {
+                    Dictionary<string, string> dicProv = new Dictionary<string, string>();
+                    dicProv.Add("Not Found", "Province isn't All or Default");
+
+                    if (dicResult.ContainsKey("Province") == false)
+                    {
+                        dicResult.Add("Province", dicProv);
+                    }
+                }
+
+                //Check Speed
+                if (suffixMkt != "ALL")
+                {
+                    if (speed != suffixMkt)
+                    {
+                        Dictionary<string, string> dicSpeed = new Dictionary<string, string>();
+                        dicSpeed.Add("Doesn't Match", "Doesn't match speed between suffix MKT and Speed");
+
+                        if (dicResult.ContainsKey("Speed") == false)
+                        {
+                            dicResult.Add("Speed", dicSpeed);
+                        }
+                    }
+                }
+
+                //Check Date
+                DateTime dDate;
+
+                if (effective != "-")
+                {
+                    if (DateTime.TryParse(effective, out dDate) == false)
+                    {
+                        Dictionary<string, string> dicEff = new Dictionary<string, string>();
+                        dicEff.Add("Wrong Format", "Incorrect effective date format");
+
+                        if (dicResult.ContainsKey("Effective") == false)
+                        {
+                            dicResult.Add("Effective", dicEff);
+                        }
+
+                    }
+                }
+
+                if (expire != "-")
+                {
+                    if (DateTime.TryParse(expire, out dDate) == false)
+                    {
+                        Dictionary<string, string> dicEnd = new Dictionary<string, string>();
+                        dicEnd.Add("Wrong Format", "Incorrect expire date format");
+
+                        if (dicResult.ContainsKey("Expire") == false)
+                        {
+                            dicResult.Add("Expire", dicEnd);
+                        }
+
+                    }
+
+                }
+
+                List<Dictionary<string, string>> lstRangeM = FormatGroupMonth(month);
+
+                Dictionary<string, string> dicresultM = new Dictionary<string, string>();
+
+                for (int num = 0; num < lstRangeM.Count; num++)
+                {
+                    dicresultM = lstRangeM[num];
+                    string minMonth = dicresultM["min" + num];
+                    string maxMonth = dicresultM["max" + num];
+
+                    //Check GroupID
+                    string queryGroup = "SELECT * FROM discount_criteria_group where DG_DISCOUNT = '" + dcCode + "' and dg_month_min = " +
+                        minMonth + " and dg_month_max = " + maxMonth;
+
+                    try
+                    {
+                        OracleCommand cmdGroup = new OracleCommand(queryGroup, CONNECTION);
+                        OracleDataReader readerGroup = cmdGroup.ExecuteReader();
+                        readerGroup.Read();
+                        if (readerGroup.HasRows)
+                        {
+                            string distinct = dcCode + minMonth + maxMonth;
+                            dgGroup = readerGroup["DG_GROUPID"].ToString();
+
+                            if (dicGroupID.ContainsKey(distinct) == false)
+                            {
+                                dicGroupID.Add(distinct, dgGroup);
+                            }
+                        }
+                        else
+                        {
+                            result += dcCode + " , month : " + minMonth + "-" + maxMonth + "\r\n";
+                        }
+
+                        readerGroup.Close();
+                        readerGroup.Dispose();
+
+                    }
+                    catch (Exception ex)
+                    {
+                        string log = ex.Message;
+                    }
+
+                }
+
+            }
+
+            if (result != "")
+            {
+                dicGroupID = new Dictionary<string, string>();
+                dicGroupID.Add("Not Found", result);
+            }
+
+            if (dicResult.ContainsKey("GroupID") == false)
+            {
+                dicResult.Add("GroupID", dicGroupID);
+            }
+
+            return dicResult;
+        }
+
+        private string FormatSpeed(string speed)
+        {
+            if (speed.Contains("M"))
+            {
+                speed = speed.Replace("M", "");
+                int convertSpeed = (Convert.ToInt32(speed)) * 1024;
+                speed = convertSpeed.ToString();
+            }
+            else if (speed.Contains("G"))
+            {
+                speed = speed.Replace("G", "");
+                int convertSpeed = Convert.ToInt32(speed) * 1024000;
+                speed = convertSpeed.ToString();
+            }
+            else if (speed.Contains("K"))
+            {
+                speed = speed.Replace("K", "");
+            }
+
+            return speed;
+
+        }
+
+        private void UPDATECHANNEL(string mkt, string dcGroupID, string speed, string effective)
+        {
+            //Create an OracleCommand object using the connection object
+            OracleCommand command = CONNECTION.CreateCommand();
+            OracleTransaction transaction;
+
+            List<string> dcID = new List<string>();
+            string id = "";
+
+            string cmdTxt = "SELECT * FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_ID IN " +
+                "(SELECT DC_ID FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_VALUE = '" + mkt + "' AND DC_GROUPID = '" + dcGroupID +
+                "' AND DC_ID IN(SELECT DC_ID FROM DISCOUNT_CRITERIA_MAPPING WHERE DC_VALUE = '" + speed + "'))";
+
+            OracleCommand cmd = new OracleCommand(cmdTxt, CONNECTION);
+            OracleDataReader reader = cmd.ExecuteReader();
+
+            if (reader.HasRows)
+            {
+                while (reader.Read())
+                {
+                    dcID.Add(reader["DC_ID"].ToString());
+                }
+
+                // distinct DC_ID
+                List<string> distinct = dcID.Distinct().ToList();
+                dcID = new List<string>();
+                dcID = distinct;
+
+                for (int i = 0; i < dcID.Count; i++)
+                {
+                    id += "'" + dcID[i] + "'";
+                }
+
+                id = id.Substring(0, id.Length - 1);
+
+                //update
+                transaction = CONNECTION.BeginTransaction(IsolationLevel.ReadCommitted);
+                // Assign transaction object for a pending local transaction
+                command.Transaction = transaction;
+
+                try
+                {
+                    command.CommandText = "UPDATE DISCOUNT_CRITERIA_MAPPING SET DC_END_DT = " +
+                    "TO_DATE('" + effective + "','dd/MM/yyyy') WHERE DC_ID IN(" + id + ")";
+
+                    command.CommandType = CommandType.Text;
+
+                    command.ExecuteNonQuery();
+                    transaction.Commit();
+
+                    Console.WriteLine("One record is updated");
+                    //MessageBox.Show("One record is inserted into the PROVISIONING_CODE.","Confirmation",MessageBoxButtons.OKCancel,MessageBoxIcon.Question);
+                }
+                catch (Exception e)
+                {
+                    transaction.Rollback();
+                    Console.WriteLine("No record was inserted into the database table.");
+                    MessageBox.Show("Can't update complete_flag" + "\r\n" + e);
+                }
+            }
+        }
+
+        private void ViewDCData_FormClosing(object sender, FormClosingEventArgs e)
+        {
+
+            if (CONNECTION71 != null)
+            {
+                try
+                {
+                    if (CONNECTION71.State != ConnectionState.Open)
+                    {
+                        CONNECTION71.Open();
+                    }
+
+                    string query = "SELECT * FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Disc' AND COMPLETE_FLAG = 'N'";
+
+                    OracleCommand cmd = new OracleCommand(query, CONNECTION71);
+                    OracleDataReader reader = cmd.ExecuteReader();
+                    reader.Read();
+                    if (reader.HasRows)
+                    {
+                        reader.Close();
+
+                        string qryDel = "DELETE FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Disc' AND COMPLETE_FLAG = 'N'";
+                        OracleCommand command = new OracleCommand(qryDel, CONNECTION71);
+                        //command.CommandText = "DELETE FROM TRUE9_BPT_RESERVE_ID WHERE TYPE_NAME = 'Disc' AND COMPLETE_FLAG = 'N'";
+                        command.ExecuteNonQuery();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    string log = ex.Message;
+                    MessageBox.Show("Can't delete row in field COMPLETE_FLAG = 'N' ... Please manual delete!" + "\r\n" + ex);
+
+                    CONNECTION71.Close();
+
+                    Application.Exit();
+                }
+            }
+
+        }
+
+    }
+}

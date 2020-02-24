@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using Oracle.ManagedDataAccess.Client;
 using System.Drawing;
 using System.IO;
@@ -84,13 +85,15 @@ namespace AutomateMappingTool
                     channel = dataGridView.Rows[i].Cells[1].Value.ToString().Trim();
                     mkt = dataGridView.Rows[i].Cells[2].Value.ToString().ToUpper();
                     order = dataGridView.Rows[i].Cells[3].Value.ToString();
-                    speed = dataGridView.Rows[i].Cells[5].Value.ToString().ToUpper().Trim();
+                    string speed = dataGridView.Rows[i].Cells[5].Value.ToString().ToUpper().Trim();
                     province = dataGridView.Rows[i].Cells[6].Value.ToString().ToUpper();
                     effective = dataGridView.Rows[i].Cells[7].Value.ToString().Trim();
                     expire = dataGridView.Rows[i].Cells[8].Value.ToString().Trim();
 
                     string uom = GetUOM(speed);
-                    if(uom == "-1")
+                    speed = Regex.Replace(speed, "[^0-9]", "");
+
+                    if (uom == "-1")
                     {
                         //error not found uom
                         lstUOM.Add("VAS Code : "+code+", MKT Code : " + mkt + ", Speed : " + speed + " not found UOM.");
@@ -101,7 +104,10 @@ namespace AutomateMappingTool
                     }
                     else
                     {
-                        VerifySpeed(i, speed, uom);
+                        if (VerifySpeed(i, speed, uom) == -1)
+                        {
+                            break;
+                        }
                     }
 
                     VerifyProvince(i);
@@ -128,7 +134,7 @@ namespace AutomateMappingTool
                     channel = dataGridView.Rows[i].Cells[2].Value.ToString().Trim();
                     mkt = dataGridView.Rows[i].Cells[3].Value.ToString().ToUpper();
                     order = dataGridView.Rows[i].Cells[4].Value.ToString();
-                    speed = dataGridView.Rows[i].Cells[6].Value.ToString().ToUpper().Trim();
+                    string speed = dataGridView.Rows[i].Cells[6].Value.ToString().ToUpper().Trim();
                     province = dataGridView.Rows[i].Cells[7].Value.ToString().ToUpper();
                     effective = dataGridView.Rows[i].Cells[8].Value.ToString();
                     expire = dataGridView.Rows[i].Cells[9].Value.ToString();
@@ -138,6 +144,8 @@ namespace AutomateMappingTool
                         if(speed.Equals("ALL", StringComparison.OrdinalIgnoreCase) == false)
                         {
                             string uom = GetUOM(speed);
+                            speed = Regex.Replace(speed, "[^0-9]", "");
+
                             if (uom == "-1")
                             {
                                 //error not found uom
@@ -153,6 +161,8 @@ namespace AutomateMappingTool
                     else
                     {
                         string uom = GetUOM(speed);
+                        speed = Regex.Replace(speed, "[^0-9]", "");
+
                         if (uom == "-1")
                         {
                             //error not found uom
@@ -165,7 +175,10 @@ namespace AutomateMappingTool
                         }
                         else
                         {
-                            VerifySpeed(i, speed, uom);
+                            if (VerifySpeed(i, speed, uom) == -1)
+                            {
+                                break;
+                            }
                         }
                     }
                    
@@ -192,7 +205,7 @@ namespace AutomateMappingTool
                 else
                 {
                     mkt = dataGridView.Rows[i].Cells[0].Value.ToString().ToUpper();
-                    speed = dataGridView.Rows[i].Cells[1].Value.ToString().ToUpper().Trim();
+                    string speed = dataGridView.Rows[i].Cells[1].Value.ToString().ToUpper().Trim();
 
                     if (speed.Contains('/'))
                     {
@@ -201,10 +214,12 @@ namespace AutomateMappingTool
                         string upSpeed = spSpeed[1].Trim();
 
                         string uom = GetUOM(downSpeed);
+                        downSpeed = Regex.Replace(downSpeed, "[^0-9]", "");
 
                         if (uom  == "-1")
                         {
                             uom = GetUOM(upSpeed);
+
                             if (uom == "-1")
                             {
                                 //error not found uom
@@ -216,12 +231,18 @@ namespace AutomateMappingTool
                             }
                             else
                             {
-                                VerifySpeed(i, downSpeed, uom);
+                                if(VerifySpeed(i, downSpeed, uom) == -1)
+                                {
+                                    break;
+                                }
                             }
                         }
                         else
                         {
-                            VerifySpeed(i, downSpeed, uom);
+                            if (VerifySpeed(i, downSpeed, uom) == -1)
+                            {
+                                break;
+                            }
                         }
                     }
                     else
@@ -325,23 +346,29 @@ namespace AutomateMappingTool
                     writer.Write(message);
                 }
             }
-            // return isCorrect;
             return listBox;
         }
 
-        private void VerifySpeed(int index, string speed, string uom)
+        private int VerifySpeed(int index, string speed, string uom)
         {
-            string suffixMkt = "";
             string msg;
+            int status = 0;
 
             if (mkt.Contains("-"))
             {
                 string[] lstmkt = mkt.Split('-');
-                suffixMkt = lstmkt[1].Trim();
+                string suffixMkt = lstmkt[1].Trim();
                 int speedID;
+
+                if (suffixMkt.EndsWith("G"))
+                {
+                    suffixMkt = suffixMkt.Substring(0, suffixMkt.Length - 1);
+                    suffixMkt = (Convert.ToInt32(suffixMkt) * 1000).ToString();
+                }
+
                 if (int.TryParse(suffixMkt, out _))
                 {
-                    speedID = Convert.ToInt16(suffixMkt);
+                    speedID = Convert.ToInt32(suffixMkt);
 
                     string query = "SELECT SPEED_ID, SPEED_DESC FROM HISPEED_SPEED WHERE SPEED_ID = " + speedID;
 
@@ -362,74 +389,139 @@ namespace AutomateMappingTool
                         }
 
                         suffixMkt = Convert.ToString(speed_desc);
+
+                        if (speed.Equals(suffixMkt) == false)
+                        {
+                            if (type == "Disc")
+                            {
+                                msg = code + " Month : " + month + ", MKT Code : " + mkt + " mismatch speed between suffix MKTCode and "
+                                    + "download speed " + speed;
+                            }
+                            else
+                            {
+                                msg = code + " MKT Code : " + mkt + " mismatch speed between suffix MKTCode and "
+                                    + "download speed " + speed;
+                            }
+
+                            InvalidSpeed.Add(msg);
+                            listBox.Items.Add("Mismatch speed between suffix MKTCode "+mkt+" and speed "+speed);
+                            IndexDgv.Add(index);
+
+                            hilightRow(type, "speed", index);
+                        }
                     }
                     else
                     {
-                        if (type == "Disc")
+                        string message = "Do you want to insert new speed " + speed + "?" + "\r\n" +
+                            "SPEED_ID: " + speedID + " SPEED_DESC: " + (speedID * 1024) + " SPEED_DETAIL: " +
+                            (speedID * 1024) + "K SPEED_LOCAL: " + (speedID * 1024) + "\r\n" + "\r\n" +
+                            "       YES = insert new speed" +
+                            "       NO = Do not insert new speed" +
+                            "       Cancel = Stop process";
+
+                        DialogResult dialogResult = MessageBox.Show(message, "Confirmation", MessageBoxButtons.YesNoCancel,
+                            MessageBoxIcon.Question);
+
+                        if (dialogResult == DialogResult.Yes)
                         {
-                            msg = code + " Month : " + month + ", MKT Code : " + mkt + " not found speed_id "
-                                + speedID + " in database[HISPEED_SPEED]";
+                            //insert new speed
+                            OracleCommand command = ConnectionProd.CreateCommand();
+                            OracleTransaction transaction = ConnectionProd.BeginTransaction(IsolationLevel.ReadCommitted);
+                            command.Transaction = transaction;
+
+                            try
+                            {
+                                string sql = "INSERT INTO HISPEED_SPEED VALUES (" + speedID + ",'" + (speedID * 1024) + "','" +
+                                    (speedID * 1024) + "K" + "','" + (speedID * 1024) + "')";
+
+                                command.CommandText = sql;
+                                command.ExecuteNonQuery();
+
+                                transaction.Commit();
+                            }
+                            catch (Exception)
+                            {
+                                transaction.Rollback();
+                                MessageBox.Show("Cannot insert the new speed." + "\r\n" + "Please try again!!", "Error",
+                                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                status = -1;
+                            }
+                        }
+                        else if (dialogResult == DialogResult.No)
+                        {
+                            if (type == "Disc")
+                            {
+                                msg = code + " Month : " + month + ", MKT Code : " + mkt + " not found speed_id "
+                                    + speedID + " in database[HISPEED_SPEED]";
+                            }
+                            else
+                            {
+                                msg = code + " MKT Code : " + mkt + " not found speed_id " + speedID + " in database[HISPEED_SPEED]";
+                            }
+
+                            InvalidSpeed.Add(msg);
+                            listBox.Items.Add("Not found speed_id : " + speedID + " in database[HISPEED_SPEED]");
+                            IndexDgv.Add(index);
+
+                            hilightRow(type, "speed", index);
                         }
                         else
                         {
-                            msg = code + " MKT Code : " + mkt + " not found speed_id " + speedID + " in database[HISPEED_SPEED]";
+                            //stop process
+                            status = -1;
                         }
-
-                        InvalidSpeed.Add(msg);
-                        listBox.Items.Add("Not found speed_id : " + speedID + " in database[HISPEED_SPEED]");
-                        IndexDgv.Add(index);
-
-                        hilightRow(type, "speed", index);
-
+                               
                     }
 
                     reader.Close();
                 }
                 else
                 {
-                    if (suffixMkt.EndsWith("G"))
+                    if (type == "Disc")
                     {
-                        suffixMkt = suffixMkt.Substring(0, suffixMkt.Length - 1);
-                        speedID = Convert.ToInt32(suffixMkt) * 1000;
+                        msg = code + " Month : " + month + ", MKT Code : " + mkt + " is invalid.";
                     }
                     else
                     {
-                        msg = code + ", " + month + " month, MKTCode : " + mkt + ", Speed " + speed +
-                            " >> Wrong format MKT Code";
-                        InvalidSpeed.Add(msg);
-                        listBox.Items.Add(msg);
-                        IndexDgv.Add(index);
+                        msg = code + " MKT Code : " + mkt + " is invalid.";
 
-                        hilightRow(type, "speed", index);
+                        if (msg.StartsWith(""))
+                        {
+                            msg.TrimStart();
+                        }
                     }
 
+                    InvalidSpeed.Add(msg);
+                    listBox.Items.Add("This MKT Code is invalid");
+                    IndexDgv.Add(index);
+
+                    hilightRow(type, "mkt", index);
                 }
             }
             else
             {
-                //format mkt
-                lstMktCode.Add("MKT Code : " + mkt + " is invalid.");
-                listBox.Items.Add("this MKT Code is invalid");
+                if (type == "Disc")
+                {
+                    msg = code + " Month : " + month + ", MKT Code : " + mkt + " is invalid.";
+                }
+                else
+                {
+                    msg = code + " MKT Code : " + mkt + " is invalid.";
+
+                    if(msg.StartsWith(""))
+                    {
+                        msg.TrimStart();
+                    }
+                }
+
+                InvalidSpeed.Add(msg);
+                listBox.Items.Add("This MKT Code is invalid");
                 IndexDgv.Add(index);
 
                 hilightRow(type, "mkt", index);
             }
 
-            if (speed.Equals("ALL") == false)
-            {
-                speed = Regex.Replace(speed, "[^0-9]", "");
-            }
-
-            if (speed.Equals(suffixMkt) == false)
-            {
-                msg = code + ", " + month + " month, MKT Code : " + mkt;
-                InvalidSpeed.Add(msg);
-                listBox.Items.Add(msg);
-                IndexDgv.Add(index);
-
-                hilightRow(type, "speed", index);
-
-            }
+            return status;
         }
 
         private bool VerifyUOM(int index)

@@ -36,6 +36,7 @@ namespace AutomateMappingTool
         private List<string> lstChannel = new List<string>();
         private List<string> lstNewChannel = new List<string>();
         private List<string> lstMktCode = new List<string>();
+        private List<string> lstOrder = new List<string>();
 
         private ListBox listBox = new ListBox();
 
@@ -202,11 +203,13 @@ namespace AutomateMappingTool
 
                     }
                 }
-                else
+                else//Hispeed
                 {
                     mkt = dataGridView.Rows[i].Cells[0].Value.ToString().ToUpper();
                     string speed = dataGridView.Rows[i].Cells[1].Value.ToString().ToUpper().Trim();
+                    string order = dataGridView.Rows[i].Cells[4].Value.ToString().Trim();
 
+                    //speed
                     if (speed.Contains('/'))
                     {
                         string[] spSpeed = speed.Split('/');
@@ -254,7 +257,11 @@ namespace AutomateMappingTool
                         hilightRow(type, "speed", i);
                     }
 
-                    order = dataGridView.Rows[i].Cells[4].Value.ToString();
+                    //Order type
+                    VerifyOrderType(i, order);
+
+
+
 
                     channel = dataGridView.Rows[i].Cells[5].Value.ToString().Trim();
                     channel = Regex.Replace(channel, "ALL", "DEFAULT", RegexOptions.IgnoreCase);
@@ -282,6 +289,8 @@ namespace AutomateMappingTool
                             hilightRow(type, "channel", i);
                         }
                     }
+
+                 
 
                 }
             }
@@ -522,6 +531,36 @@ namespace AutomateMappingTool
             }
 
             return status;
+        }
+
+        private void VerifyOrderType(int index, string order)
+        {
+            char[] toChar = order.ToCharArray();
+            char[] specialChar = new char[toChar.Length];
+            int count = 0;
+
+            for (int i = 0; i < toChar.Length; i++)
+            {
+                if (!Char.IsLetterOrDigit(toChar[i]))
+                {
+                    specialChar[count] = toChar[i];
+                    count++;
+                }
+
+                Array.Resize(ref specialChar, count);
+            }
+
+            if(count > 0)
+            {
+                if (specialChar.Contains(',') == false)
+                {
+                    lstOrder.Add("MKT Code : " + mkt + " order type doesn't contain characters ','");
+                    listBox.Items.Add("This order type doesn't contain ','");
+                    IndexDgv.Add(index);
+
+                    hilightRow(type, "order", index);
+                }
+            }
         }
 
         private bool VerifyUOM(int index)
@@ -875,7 +914,7 @@ namespace AutomateMappingTool
             }
         }
 
-        private void VerifyProdType(int index)
+        private void VerifyProdType(int index, string prod)
         {
             string prefixMKT;
             if (mkt.StartsWith("TRL"))

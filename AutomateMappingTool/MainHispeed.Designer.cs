@@ -50,6 +50,7 @@
             this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.listBox1 = new System.Windows.Forms.ListBox();
+            this.btnLog = new System.Windows.Forms.Button();
             this.panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox4)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.btnMinimize)).BeginInit();
@@ -194,10 +195,10 @@
             this.btnOK.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnOK.Font = new System.Drawing.Font("Footlight MT Light", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.btnOK.ForeColor = System.Drawing.SystemColors.ControlLightLight;
-            this.btnOK.Location = new System.Drawing.Point(912, 420);
+            this.btnOK.Location = new System.Drawing.Point(848, 420);
             this.btnOK.Margin = new System.Windows.Forms.Padding(2);
             this.btnOK.Name = "btnOK";
-            this.btnOK.Size = new System.Drawing.Size(112, 43);
+            this.btnOK.Size = new System.Drawing.Size(176, 55);
             this.btnOK.TabIndex = 16;
             this.btnOK.Text = "Execute";
             this.btnOK.UseVisualStyleBackColor = false;
@@ -297,12 +298,31 @@
             this.listBox1.TabIndex = 21;
             this.listBox1.MouseClick += new System.Windows.Forms.MouseEventHandler(this.listBox1_MouseClick);
             // 
+            // btnLog
+            // 
+            this.btnLog.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(224)))), ((int)(((byte)(2)))), ((int)(((byte)(107)))));
+            this.btnLog.FlatAppearance.BorderColor = System.Drawing.Color.White;
+            this.btnLog.FlatAppearance.MouseDownBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(0)))), ((int)(((byte)(73)))));
+            this.btnLog.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(0)))), ((int)(((byte)(73)))));
+            this.btnLog.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnLog.Font = new System.Drawing.Font("Footlight MT Light", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnLog.ForeColor = System.Drawing.SystemColors.ControlLightLight;
+            this.btnLog.Location = new System.Drawing.Point(656, 420);
+            this.btnLog.Margin = new System.Windows.Forms.Padding(2);
+            this.btnLog.Name = "btnLog";
+            this.btnLog.Size = new System.Drawing.Size(176, 55);
+            this.btnLog.TabIndex = 22;
+            this.btnLog.Text = "Write Log and Exist";
+            this.btnLog.UseVisualStyleBackColor = false;
+            // 
             // MainHispeed
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(42)))), ((int)(((byte)(42)))), ((int)(((byte)(42)))));
             this.ClientSize = new System.Drawing.Size(1035, 640);
+            this.Controls.Add(this.btnLog);
             this.Controls.Add(this.listBox1);
             this.Controls.Add(this.panelHome);
             this.Controls.Add(this.btnOK);
@@ -359,5 +379,6 @@
         private System.Windows.Forms.PictureBox pictureBox1;
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private System.Windows.Forms.ListBox listBox1;
+        private System.Windows.Forms.Button btnLog;
     }
 }

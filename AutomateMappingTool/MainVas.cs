@@ -248,7 +248,7 @@ namespace MappingDiscount
             {
                 ConnectionTemp.Open();
 
-                bool hasUserInProcess = reserv.checkStatus(ConnectionTemp, "VAS", user, urNo);
+                bool hasUserInProcess = reserv.CheckStatus(ConnectionTemp, "VAS", user, urNo);
 
                 if (hasUserInProcess == false)
                 {
@@ -259,7 +259,7 @@ namespace MappingDiscount
                     }
                     else
                     {
-                        int vasID = reserv.reserveID(ConnectionTemp, ConnectionProd, "VAS", user, urNo);
+                        int vasID = reserv.GetMaxID(ConnectionTemp, ConnectionProd, "VAS", user, urNo);
 
                         Execute(vasID);
 

@@ -1,9 +1,16 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28306.52
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29806.167
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutomateMappingTool", "AutomateMappingTool\AutomateMappingTool.csproj", "{765A33AF-7CD9-41C0-80B0-6F5799513F3A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{D8121443-0079-48D8-B558-222A5AC0920E}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTestAutoMateMapping", "UnitTestAutoMateMapping\UnitTestAutoMateMapping.csproj", "{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +28,14 @@ Global
 		{765A33AF-7CD9-41C0-80B0-6F5799513F3A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{765A33AF-7CD9-41C0-80B0-6F5799513F3A}.Release|x64.ActiveCfg = Release|x64
 		{765A33AF-7CD9-41C0-80B0-6F5799513F3A}.Release|x64.Build.0 = Release|x64
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Debug|x64.Build.0 = Debug|Any CPU
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Release|x64.ActiveCfg = Release|Any CPU
+		{B94D0108-2962-47F2-BFDF-5AD70A5CC1C2}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

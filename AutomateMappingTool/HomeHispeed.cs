@@ -23,10 +23,9 @@ namespace MappingDiscount
         FormLogin formLogin;
 
         //For move form
-        int mov;
-        int movX;
-        int movY;
+        int mov, movX, movY;
 
+        [Obsolete]
         public HomeHispeed(OracleConnection con, string user)
         {
             InitializeComponent();
@@ -97,7 +96,7 @@ namespace MappingDiscount
             }
 
             Cursor.Current = Cursors.Default;
-        }
+        } 
 
         /// <summary>
         /// Open file requirment

@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using Excel = Microsoft.Office.Interop.Excel;
 
 namespace MappingDiscount
 {
@@ -134,7 +135,24 @@ namespace MappingDiscount
             format = new ChangeFormat();
             viewSetting = new DgvSettings();
 
-            settingDataGridView();
+            Excel.Application xlApp = new Excel.Application();
+            Excel.Workbook wb = xlApp.Workbooks.Open(FILENAME);
+
+            foreach (Excel.Worksheet sheet in wb.Sheets)
+            {
+                if (sheet.Name == "HiSpeed Promotion")
+                {
+                    //call process hispeed
+                    break;
+                }
+                else if(sheet.Name == "Campaign Mapping")
+                {
+                    //call process campaign
+                    break;
+                }
+            }
+
+                SettingDataGridView();
 
             homeHispeed.Hide();
             
@@ -370,17 +388,9 @@ namespace MappingDiscount
         #endregion
 
         /// <summary>
-        /// Show data from Sheet Campaign Mapping
-        /// </summary>
-        private void ViewCampaignMapping()
-        {
-
-        }
-
-        /// <summary>
         /// Show data from file excel package mapping (requirement)
         /// </summary>
-        private void settingDataGridView()
+        private void SettingDataGridView()
         {
             try
             {
@@ -997,7 +1007,7 @@ namespace MappingDiscount
             int maxID = 0;
             string lstID = "";
 
-            bool isInProcess = reserve.checkStatus(ConnectionTemp, "Hispeed", USER, UR_NO);
+            bool isInProcess = reserve.CheckStatus(ConnectionTemp, "Hispeed", USER, UR_NO);
 
             if (isInProcess == false)
             {
@@ -1181,7 +1191,7 @@ namespace MappingDiscount
                                     //create new id
                                     if (minID == 0)
                                     {
-                                        minID = reserve.reserveID(ConnectionTemp, ConnectionProd, "Hispeed", USER, UR_NO);
+                                        minID = reserve.GetMaxID(ConnectionTemp, ConnectionProd, "Hispeed", USER, UR_NO);
                                         maxID = minID;
                                     }
                                     else
@@ -1258,7 +1268,7 @@ namespace MappingDiscount
 
                         resultForm.ExportImp(outputPath);
 
-                        reserve.updateID(ConnectionTemp, minID.ToString(), maxID.ToString(), "Hispeed", USER, UR_NO);
+                        reserve.UpdateID(ConnectionTemp, minID.ToString(), maxID.ToString(), "Hispeed", USER, UR_NO);
 
                         MessageBox.Show("Already insert/update your data into database");
                     }

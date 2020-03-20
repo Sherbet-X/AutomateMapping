@@ -131,7 +131,7 @@ namespace MappingDiscount
 
         private void btnLogin_Click(object sender, EventArgs e)
         {
-            if (txtUser.Text == "" || txtPassword.Text == "")
+            if (String.IsNullOrEmpty(txtUser.Text) || String.IsNullOrEmpty(txtPassword.Text))
             {
                 MessageBox.Show("Please input UserName / Password");
             }
@@ -168,11 +168,11 @@ namespace MappingDiscount
             {
                 ConnectionProd = new OracleConnection();
 
-                string connString = "Data Source=(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.193.20)(PORT = 1560))" +
-                    "(CONNECT_DATA = (SID = TEST03)));User Id=" + user + "; Password=" + password + "; Min Pool Size=10; Max Pool Size =20";
+                //string connString = "Data Source=(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = 172.19.193.20)(PORT = 1560))" +
+                //    "(CONNECT_DATA = (SID = TEST03)));User Id=" + user + "; Password=" + password + "; Min Pool Size=10; Max Pool Size =20";
 
-                //string connString = @"Data Source= (DESCRIPTION =(ADDRESS_LIST = (ADDRESS = (PROTOCOL = TCP)(HOST = 150.4.2.2)(PORT = 1521)) )" +
-                //   "(CONNECT_DATA =(SERVICE_NAME = TAPRD)));User ID=" + user + ";Password=" + password + ";";
+                string connString = @"Data Source= (DESCRIPTION =(ADDRESS_LIST = (ADDRESS = (PROTOCOL = TCP)(HOST = 150.4.2.2)(PORT = 1521)) )" +
+                   "(CONNECT_DATA =(SERVICE_NAME = TAPRD)));User ID=" + user + ";Password=" + password + ";";
 
                 ConnectionProd.ConnectionString = connString;
                 ConnectionProd.Open();

@@ -587,11 +587,11 @@ namespace MappingDiscount
 
                 ConnectionTemp = ConnectionProd;
 
-                bool hasUserInProcess = reserv.checkStatus(ConnectionTemp, "Disc", user, urNo);
+                bool hasUserInProcess = reserv.CheckStatus(ConnectionTemp, "Disc", user, urNo);
 
                 if (hasUserInProcess == false)
                 {
-                    int dcID = reserv.reserveID(ConnectionTemp, ConnectionProd, "Disc", user, urNo);
+                    int dcID = reserv.GetMaxID(ConnectionTemp, ConnectionProd, "Disc", user, urNo);
                     ExecuteNewDC(dcID);
                 }
             }

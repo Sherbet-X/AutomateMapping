@@ -266,6 +266,8 @@ namespace AutomateMappingTool
                     channel = dataGridView.Rows[i].Cells[5].Value.ToString().Trim();
                     channel = Regex.Replace(channel, "ALL", "DEFAULT", RegexOptions.IgnoreCase);
 
+
+
                     effective = dataGridView.Rows[i].Cells[8].Value.ToString();
                     expire = dataGridView.Rows[i].Cells[9].Value.ToString();
                     entry = dataGridView.Rows[i].Cells[10].Value.ToString().Trim();
@@ -532,7 +534,6 @@ namespace AutomateMappingTool
 
             return status;
         }
-
         private void VerifyOrderType(int index, string order)
         {
             char[] toChar = order.ToCharArray();
@@ -657,10 +658,8 @@ namespace AutomateMappingTool
                     IndexDgv.Add(index);
 
                     hilightRow(type, "province", index);
-
                 }
             }
-
         }
 
         //Check province in DB

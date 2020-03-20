@@ -193,11 +193,11 @@ namespace MappingDiscount
 
             if (Max_ID.StartsWith("DC"))
             {
-                reserve.updateID(ConnectionTemp, Min_ID, Max_ID, "Disc", USER, UR_NO);
+                reserve.UpdateID(ConnectionTemp, Min_ID, Max_ID, "Disc", USER, UR_NO);
             }
             else if (Max_ID.StartsWith("VAS"))
             {
-                reserve.updateID(ConnectionTemp, Min_ID, Max_ID, "VAS", USER, UR_NO);
+                reserve.UpdateID(ConnectionTemp, Min_ID, Max_ID, "VAS", USER, UR_NO);
             }
 
             string msg = "Your script was exported successfully" + "\r\n" + "Min ID: " + Min_ID + "\r\n" + "\r\n" + "Max ID: " + Max_ID;
@@ -914,11 +914,11 @@ namespace MappingDiscount
             //Update complete flag & max ID
             if (Max_ID.StartsWith("DC"))
             {
-                reserve.updateID(ConnectionTemp, Min_ID, Max_ID, "Disc", USER, UR_NO);
+                reserve.UpdateID(ConnectionTemp, Min_ID, Max_ID, "Disc", USER, UR_NO);
             }
             else if (Max_ID.StartsWith("VAS"))
             {
-                reserve.updateID(ConnectionTemp, Min_ID, Max_ID, "VAS", USER, UR_NO);
+                reserve.UpdateID(ConnectionTemp, Min_ID, Max_ID, "VAS", USER, UR_NO);
             }
 
         }

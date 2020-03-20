@@ -12,7 +12,7 @@ namespace AutomateMappingTool
     class ReserveID
     {
 
-        public bool checkStatus(OracleConnection ConnectionTemp, string type, string implementer, string urNo)
+        public bool CheckStatus(OracleConnection ConnectionTemp, string type, string implementer, string urNo)
         {
             bool isInProcess = false;
             OracleCommand cmd = null;
@@ -101,7 +101,8 @@ namespace AutomateMappingTool
             return isInProcess;
         }
 
-        public int reserveID(OracleConnection ConnectionTemp, OracleConnection ConnectionProd, string type, string implementer, string urNo)
+        public int GetMaxID(OracleConnection ConnectionTemp, OracleConnection ConnectionProd, 
+            string type, string implementer, string urNo)
         {
             OracleCommand cmd = null;
             int minID = 0;
@@ -153,7 +154,7 @@ namespace AutomateMappingTool
                 max = Convert.ToInt32(maxid);
             }
 
-            if (minID <= max)
+            if (minID < max)
             {
                 MessageBox.Show("There is a conflict ID between production and reserve table[TRUE9_BPT_RESERVE_ID]" + "\r\n"
                     + "Please review and confirm the information");
@@ -171,7 +172,7 @@ namespace AutomateMappingTool
             return minID;
         }
 
-        public void updateID(OracleConnection ConnectionTemp, string minID, string maxID, string type, string implementer, string urNO)
+        public void UpdateID(OracleConnection ConnectionTemp, string minID, string maxID, string type, string implementer, string urNO)
         {
             OracleCommand cmd = ConnectionTemp.CreateCommand();
 
